@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.pnpm-store/
+.codex-screenshots/
+coverage/
+*.tsbuildinfo
+.env*
+!.env.example
