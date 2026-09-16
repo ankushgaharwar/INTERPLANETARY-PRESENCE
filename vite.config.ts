@@ -1,9 +1,19 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: "./",
   plugins: [react()],
+  build:
+    mode === "standalone"
+      ? {
+          rollupOptions: {
+            output: {
+              inlineDynamicImports: true
+            }
+          }
+        }
+      : undefined,
   test: {
     environment: "jsdom",
     globals: true,
@@ -12,4 +22,4 @@ export default defineConfig({
       reporter: ["text", "html"]
     }
   }
-});
+}));

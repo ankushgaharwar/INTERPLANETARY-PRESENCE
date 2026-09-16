@@ -43,6 +43,8 @@ pnpm export:standalone
 
 Then open `dist/standalone.html`.
 
+Double-clicking the repository's root `index.html` redirects to that generated standalone file. Run `pnpm export:standalone` again after changing the application. The interface works from a local file, but browsers only expose camera and microphone access on HTTPS or localhost; use `pnpm dev` for local media testing.
+
 ## Publish with GitHub Pages
 
 To publish at `https://intergalacticpresence.github.io/`, the GitHub user or organization must be named `intergalacticpresence`, and its repository must be named `intergalacticpresence.github.io`. GitHub's standard user-site URL does not include `www`.
