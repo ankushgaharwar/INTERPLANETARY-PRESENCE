@@ -25,6 +25,12 @@ export function RoomBar({
   const [copied, setCopied] = useState(false);
   const inviteUrl = new URL(window.location.href);
   inviteUrl.searchParams.set("room", session.roomCode);
+  const hostStation =
+    peers.find((peer) => peer.role === "father")?.station ??
+    (session.role === "father" ? session.station : undefined);
+  if (hostStation) {
+    inviteUrl.searchParams.set("station", hostStation);
+  }
 
   const copyInvite = async () => {
     await navigator.clipboard.writeText(inviteUrl.toString());

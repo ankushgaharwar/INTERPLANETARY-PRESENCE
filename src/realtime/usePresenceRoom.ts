@@ -5,6 +5,8 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { realtimeConfig } from "./config";
 import type {
+  MediaSignal,
+  OutgoingMediaSignal,
   RoomConnectionStatus,
   RoomMessage,
   RoomPeer,
@@ -30,10 +32,16 @@ interface LocalHelloEnvelope {
   kind: "hello";
 }
 
+interface LocalSignalEnvelope {
+  kind: "signal";
+  signal: MediaSignal;
+}
+
 type LocalEnvelope =
   | LocalPresenceEnvelope
   | LocalLeaveEnvelope
   | LocalMessageEnvelope
+  | LocalSignalEnvelope
   | LocalHelloEnvelope;
 
 const isRoomMessage = (value: unknown): value is RoomMessage => {
@@ -56,6 +64,25 @@ const isRoomMessage = (value: unknown): value is RoomMessage => {
   );
 };
 
+const isMediaSignal = (value: unknown): value is MediaSignal => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const signal = value as Partial<MediaSignal>;
+  return (
+    typeof signal.id === "string" &&
+    typeof signal.roomCode === "string" &&
+    typeof signal.senderId === "string" &&
+    (signal.targetId === undefined || typeof signal.targetId === "string") &&
+    (signal.kind === "media-ready" ||
+      signal.kind === "offer" ||
+      signal.kind === "answer" ||
+      signal.kind === "candidate") &&
+    typeof signal.sentAt === "number"
+  );
+};
+
 const normalizeRoomCode = (roomCode: string) =>
   roomCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
 
@@ -64,9 +91,13 @@ export function usePresenceRoom(session: RoomSession | null) {
     useState<RoomConnectionStatus>("disconnected");
   const [peers, setPeers] = useState<RoomPeer[]>([]);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const [mediaSignals, setMediaSignals] = useState<MediaSignal[]>([]);
   const [error, setError] = useState("");
   const sendRef = useRef<(message: RoomMessage) => Promise<boolean>>(async () =>
     false
+  );
+  const signalRef = useRef<(signal: MediaSignal) => Promise<boolean>>(
+    async () => false
   );
 
   const addMessage = useCallback((message: RoomMessage) => {
@@ -81,8 +112,18 @@ export function usePresenceRoom(session: RoomSession | null) {
     });
   }, []);
 
+  const addMediaSignal = useCallback((signal: MediaSignal) => {
+    setMediaSignals((current) => {
+      if (current.some((candidate) => candidate.id === signal.id)) {
+        return current;
+      }
+      return [...current.slice(-99), signal];
+    });
+  }, []);
+
   useEffect(() => {
     setMessages([]);
+    setMediaSignals([]);
     setError("");
     if (!session) {
       setStatus("disconnected");
@@ -133,6 +174,10 @@ export function usePresenceRoom(session: RoomSession | null) {
           addMessage(envelope.message);
           return;
         }
+        if (envelope.kind === "signal" && isMediaSignal(envelope.signal)) {
+          addMediaSignal(envelope.signal);
+          return;
+        }
         if (envelope.kind === "leave") {
           knownPeers.delete(envelope.clientId);
           syncPeers();
@@ -152,6 +197,10 @@ export function usePresenceRoom(session: RoomSession | null) {
         channel.postMessage({ kind: "message", message } satisfies LocalEnvelope);
         return true;
       };
+      signalRef.current = async (signal) => {
+        channel.postMessage({ kind: "signal", signal } satisfies LocalEnvelope);
+        return true;
+      };
 
       setStatus("connected");
       channel.postMessage({ kind: "hello" } satisfies LocalEnvelope);
@@ -168,6 +217,7 @@ export function usePresenceRoom(session: RoomSession | null) {
         } satisfies LocalEnvelope);
         channel.close();
         sendRef.current = async () => false;
+        signalRef.current = async () => false;
       };
     }
 
@@ -213,6 +263,11 @@ export function usePresenceRoom(session: RoomSession | null) {
             addMessage(payload);
           }
         })
+        .on("broadcast", { event: "media-signal" }, ({ payload }) => {
+          if (isMediaSignal(payload)) {
+            addMediaSignal(payload);
+          }
+        })
         .subscribe(async (channelStatus) => {
           if (disposed) {
             return;
@@ -251,6 +306,18 @@ export function usePresenceRoom(session: RoomSession | null) {
         }
         return true;
       };
+      signalRef.current = async (signal) => {
+        const response = await channel.send({
+          type: "broadcast",
+          event: "media-signal",
+          payload: signal
+        });
+        if (response !== "ok") {
+          setError("The media connection could not be negotiated.");
+          return false;
+        }
+        return true;
+      };
     };
 
     void connectHostedRoom().catch(() => {
@@ -267,8 +334,9 @@ export function usePresenceRoom(session: RoomSession | null) {
         void supabase.removeChannel(realtimeChannel);
       }
       sendRef.current = async () => false;
+      signalRef.current = async () => false;
     };
-  }, [addMessage, session]);
+  }, [addMediaSignal, addMessage, session]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -291,12 +359,32 @@ export function usePresenceRoom(session: RoomSession | null) {
     [session, status]
   );
 
+  const sendMediaSignal = useCallback(
+    async (outgoing: OutgoingMediaSignal) => {
+      if (!session || status !== "connected") {
+        return false;
+      }
+
+      const signal: MediaSignal = {
+        ...outgoing,
+        id: crypto.randomUUID(),
+        roomCode: normalizeRoomCode(session.roomCode),
+        senderId: session.clientId,
+        sentAt: Date.now()
+      };
+      return signalRef.current(signal);
+    },
+    [session, status]
+  );
+
   return {
     status,
     peers,
     messages,
+    mediaSignals,
     error,
     sendMessage,
+    sendMediaSignal,
     transport: realtimeConfig.hosted ? "hosted" : "local"
   } as const;
 }

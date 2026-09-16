@@ -1,18 +1,17 @@
-import { ArrowRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LiveMediaStage } from "./components/LiveMediaStage";
 import { PlaybackControls, type AppMode } from "./components/PlaybackControls";
 import {
   PresenceComposer,
   type SentPresenceReceipt
 } from "./components/PresenceComposer";
-import { PresenceRail } from "./components/PresenceRail";
 import { RoomBar } from "./components/RoomBar";
 import { RoomLobby } from "./components/RoomLobby";
-import { SpatialScene } from "./components/SpatialScene";
 import { SystemDesign } from "./components/SystemDesign";
 import { getStationDistanceMeters, STATION_BY_ID } from "./realtime/stations";
 import type { RoomPeer, RoomSession, StationId } from "./realtime/types";
 import { usePresenceRoom } from "./realtime/usePresenceRoom";
+import { useMediaCall } from "./realtime/useMediaCall";
 import { createReferenceSettings } from "./simulation/constants";
 import { formatClock, formatSeconds } from "./simulation/format";
 import {
@@ -58,10 +57,10 @@ const getTurnStage = (
     return `${participantNames[sender]} speaking · voice traveling to ${participantNames[recipient]}`;
   }
   if (expression && simulationTime < expression.renderReadyAt) {
-    return "Voice received · expression, motion and intent next";
+    return "Voice received · live video next";
   }
   if (pointCloud && simulationTime < pointCloud.networkArrivalTime) {
-    return "Embodied cues received · point cloud next";
+    return "Live expression, motion and intent received · point cloud next";
   }
   if (pointCloud && simulationTime < pointCloud.renderReadyAt) {
     return `Point cloud reconstructing for ${participantNames[recipient]}`;
@@ -100,6 +99,12 @@ interface LiveSessionProps {
 
 function LiveSession({ session, onLeave }: LiveSessionProps) {
   const room = usePresenceRoom(session);
+  const media = useMediaCall({
+    session,
+    peers: room.peers,
+    signals: room.mediaSignals,
+    sendSignal: room.sendMediaSignal
+  });
   const [settings, setSettings] = useState<ScientificSettings>(() =>
     createReferenceSettings()
   );
@@ -201,6 +206,16 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
     (peer) => peer.clientId !== session.clientId
   );
   const roomFull = room.peers.length > 2;
+  const stationConflict =
+    room.peers.length > 1 &&
+    new Set(room.peers.map((peer) => peer.station)).size !== room.peers.length;
+  const remotePeer = room.peers.find(
+    (peer) => peer.clientId !== session.clientId
+  );
+  const remoteStation =
+    remotePeer?.station ??
+    STATION_BY_ID[session.station === "earth" ? "moon" : "earth"].id;
+  const remoteName = remotePeer?.displayName ?? "Waiting for partner";
   const turnStage = hasLiveMessages
     ? getTurnStage(
         focusEvents,
@@ -301,7 +316,12 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
 
     arrivedVoice.forEach((event) => {
       spokenEventsRef.current.add(event.id);
-      if (!muted && "speechSynthesis" in window) {
+      if (
+        !muted &&
+        !media.remoteStream &&
+        event.sender !== session.role &&
+        "speechSynthesis" in window
+      ) {
         const utterance = new SpeechSynthesisUtterance(event.text);
         utterance.lang = "en-US";
         utterance.pitch = event.sender === "daughter" ? 1.08 : 0.9;
@@ -311,7 +331,7 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
     });
 
     previousTimeRef.current = simulationTime;
-  }, [events, muted, simulationTime]);
+  }, [events, media.remoteStream, muted, session.role, simulationTime]);
 
   const startSimulation = () => {
     window.speechSynthesis?.cancel();
@@ -402,82 +422,43 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
         onLeave={onLeave}
       />
 
-      {room.error || roomFull ? (
+      {room.error || roomFull || stationConflict ? (
         <div className="room-alert" role="alert">
-          {roomFull ? "This room already has two participants." : room.error}
+          {roomFull
+            ? "This room already has two participants."
+            : stationConflict
+              ? "That location is already occupied. Leave and choose another station."
+              : room.error}
         </div>
       ) : null}
 
       {mode === "experience" ? (
         <section className="experience-view" aria-labelledby="experience-title">
-          <div className="spatial-stage">
-            <div className="stage-heading">
-              <div>
-                <p className="eyebrow">shared spatial session</p>
-                <h2 id="experience-title">Presence arrives in layers</h2>
-                <div
-                  className="turn-route"
-                  aria-label={`${participantNames[focusMessage.sender]} to ${participantNames[recipient]}`}
-                >
-                  <span>{participantNames[focusMessage.sender]}</span>
-                  <ArrowRight aria-hidden="true" />
-                  <span>{participantNames[recipient]}</span>
-                </div>
-              </div>
-              <div className="stage-metrics">
-                <span>{(distanceMeters / 1000).toLocaleString()} km</span>
-                <span>{formatSeconds(propagationTime)} one-way</span>
-                <strong>{formatClock(simulationTime)}</strong>
-              </div>
-            </div>
-
-            <SpatialScene
-              events={events}
-              focusMessageId={focusMessage.id}
-              simulationTime={simulationTime}
-              selectedForm={selectedForm}
-              reducedMotion={reducedMotion}
-              fatherStation={fatherStation}
-              daughterStation={daughterStation}
-            />
-
-            <div
-              className={`participant-label father-label ${focusMessage.sender === "father" ? "is-active" : ""}`}
-            >
-              <span>
-                {focusMessage.sender === "father"
-                  ? "Transmitting"
-                  : "Receiving on monitor"}
-              </span>
-              <strong>
-                {STATION_BY_ID[fatherStation].label} · {participantNames.father}
-              </strong>
-            </div>
-            <div
-              className={`participant-label daughter-label ${focusMessage.sender === "daughter" ? "is-active" : ""}`}
-            >
-              <span>
-                {focusMessage.sender === "daughter"
-                  ? "Transmitting"
-                  : "Receiving on monitor"}
-              </span>
-              <strong>
-                {STATION_BY_ID[daughterStation].label} · {participantNames.daughter}
-              </strong>
-            </div>
-
-            <div className="live-transcript" aria-live="polite">
-              <span>{turnStage}</span>
-              <p>“{focusMessage.text}”</p>
-            </div>
-
-            <PresenceRail
-              events={focusEvents}
-              simulationTime={simulationTime}
-              selectedForm={selectedForm}
-              onSelect={setSelectedForm}
-            />
-          </div>
+          <h2 id="experience-title" className="sr-only">Live interplanetary presence</h2>
+          <LiveMediaStage
+            localStream={media.localStream}
+            remoteStream={media.remoteStream}
+            mediaStatus={media.status}
+            mediaError={media.error}
+            cameraEnabled={media.cameraEnabled}
+            microphoneEnabled={media.microphoneEnabled}
+            localParticipant={session.role}
+            localStation={session.station}
+            remoteStation={remoteStation}
+            localName={session.displayName}
+            remoteName={remoteName}
+            focusMessage={focusMessage}
+            focusEvents={focusEvents}
+            simulationTime={simulationTime}
+            selectedForm={selectedForm}
+            turnStage={`${turnStage} · ${(distanceMeters / 1000).toLocaleString()} km · ${formatSeconds(propagationTime)} one-way · ${formatClock(simulationTime)}`}
+            hasLiveMessages={hasLiveMessages}
+            reducedMotion={reducedMotion}
+            onEnableMedia={() => void media.enableMedia()}
+            onToggleCamera={media.toggleCamera}
+            onToggleMicrophone={media.toggleMicrophone}
+            onSelectForm={setSelectedForm}
+          />
         </section>
       ) : (
         <SystemDesign settings={activeSettings} onChange={setSettings} />
@@ -490,7 +471,23 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
         nextSender={nextSender}
         localParticipant={session.role}
         participantNames={participantNames}
-        connectionReady={room.status === "connected" && !roomFull}
+        connectionReady={
+          room.status === "connected" &&
+          media.status === "connected" &&
+          !roomFull &&
+          !stationConflict
+        }
+        connectionStatusText={
+          room.status !== "connected"
+            ? "Connecting to the shared room"
+            : media.status === "idle"
+              ? "Enable camera and microphone above"
+              : media.status === "requesting"
+                ? "Waiting for camera and microphone permission"
+                : media.status === "error"
+                  ? "Media connection needs attention"
+                  : "Connecting the live media link"
+        }
         peerConnected={peerConnected}
         onSend={room.sendMessage}
       />
@@ -504,6 +501,9 @@ function App() {
   const enterRoom = (nextSession: RoomSession) => {
     const url = new URL(window.location.href);
     url.searchParams.set("room", nextSession.roomCode);
+    if (nextSession.role === "father") {
+      url.searchParams.set("station", nextSession.station);
+    }
     window.history.replaceState({}, "", url);
     setSession(nextSession);
   };
@@ -511,6 +511,7 @@ function App() {
   const leaveRoom = () => {
     const url = new URL(window.location.href);
     url.searchParams.delete("room");
+    url.searchParams.delete("station");
     window.history.replaceState({}, "", url);
     window.speechSynthesis?.cancel();
     setSession(null);
