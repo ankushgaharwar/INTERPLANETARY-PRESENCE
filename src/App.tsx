@@ -15,6 +15,7 @@ import { SpatialScene } from "./components/SpatialScene";
 import { SystemDesign } from "./components/SystemDesign";
 import { getStationDistanceMeters, STATION_BY_ID } from "./realtime/stations";
 import type { RoomPeer, RoomSession, StationId } from "./realtime/types";
+import { useLobbyDirectory } from "./realtime/useLobbyDirectory";
 import { usePresenceRoom } from "./realtime/usePresenceRoom";
 import { createReferenceSettings } from "./simulation/constants";
 import { formatClock, formatSeconds } from "./simulation/format";
@@ -100,9 +101,14 @@ const getFallbackStation = (
 interface LiveSessionProps {
   session: RoomSession;
   onLeave: () => void;
+  onLobbyAvailabilityChange: (isOpen: boolean) => void;
 }
 
-function LiveSession({ session, onLeave }: LiveSessionProps) {
+function LiveSession({
+  session,
+  onLeave,
+  onLobbyAvailabilityChange
+}: LiveSessionProps) {
   const room = usePresenceRoom(session);
   const [settings, setSettings] = useState<ScientificSettings>(() =>
     createReferenceSettings()
@@ -232,6 +238,11 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
     : "Ready for the first presence transmission";
 
   useEffect(() => {
+    onLobbyAvailabilityChange(session.role === "father" && !peerConnected);
+    return () => onLobbyAvailabilityChange(false);
+  }, [onLobbyAvailabilityChange, peerConnected, session.role]);
+
+  useEffect(() => {
     if (!isRunning) {
       return;
     }
@@ -347,7 +358,6 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
       </header>
 
       <RoomBar
-        session={session}
         peers={room.peers}
         status={room.status}
         transport={room.transport}
@@ -460,26 +470,34 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
 
 function App() {
   const [session, setSession] = useState<RoomSession | null>(null);
+  const [lobbyAvailable, setLobbyAvailable] = useState(false);
+  const advertisedSession =
+    session?.role === "father" && lobbyAvailable ? session : null;
+  const directory = useLobbyDirectory(advertisedSession);
 
   const enterRoom = (nextSession: RoomSession) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("room", nextSession.roomCode);
-    window.history.replaceState({}, "", url);
+    setLobbyAvailable(nextSession.role === "father");
     setSession(nextSession);
   };
 
   const leaveRoom = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete("room");
-    window.history.replaceState({}, "", url);
     window.speechSynthesis?.cancel();
+    setLobbyAvailable(false);
     setSession(null);
   };
 
   return session ? (
-    <LiveSession session={session} onLeave={leaveRoom} />
+    <LiveSession
+      session={session}
+      onLeave={leaveRoom}
+      onLobbyAvailabilityChange={setLobbyAvailable}
+    />
   ) : (
-    <RoomLobby onEnter={enterRoom} />
+    <RoomLobby
+      lobbies={directory.lobbies}
+      directoryStatus={directory.status}
+      onEnter={enterRoom}
+    />
   );
 }
 

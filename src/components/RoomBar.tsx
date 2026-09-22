@@ -1,14 +1,11 @@
-import { Check, Copy, LogOut, Radio, UsersRound } from "lucide-react";
-import { useState } from "react";
+import { LogOut, Radio, UsersRound } from "lucide-react";
 import { STATION_BY_ID } from "../realtime/stations";
 import type {
   RoomConnectionStatus,
-  RoomPeer,
-  RoomSession
+  RoomPeer
 } from "../realtime/types";
 
 interface RoomBarProps {
-  session: RoomSession;
   peers: RoomPeer[];
   status: RoomConnectionStatus;
   transport: "hosted" | "local";
@@ -16,29 +13,18 @@ interface RoomBarProps {
 }
 
 export function RoomBar({
-  session,
   peers,
   status,
   transport,
   onLeave
 }: RoomBarProps) {
-  const [copied, setCopied] = useState(false);
-  const inviteUrl = new URL(window.location.href);
-  inviteUrl.searchParams.set("room", session.roomCode);
-
-  const copyInvite = async () => {
-    await navigator.clipboard.writeText(inviteUrl.toString());
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
-  };
-
   return (
     <section className="room-bar" aria-label="Shared room status">
       <div className="room-identity">
         <span className={`connection-dot is-${status}`} aria-hidden="true" />
         <div>
-          <small>{transport === "hosted" ? "Live room" : "Local room"}</small>
-          <strong>{session.roomCode}</strong>
+          <small>{transport === "hosted" ? "Live lobby" : "Local lobby"}</small>
+          <strong>{peers.length < 2 ? "Open for one person" : "Shared session"}</strong>
         </div>
       </div>
 
@@ -54,10 +40,6 @@ export function RoomBar({
       </div>
 
       <div className="room-bar-actions">
-        <button type="button" onClick={copyInvite}>
-          {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-          {copied ? "Copied" : "Copy invite"}
-        </button>
         <button type="button" onClick={onLeave}>
           <LogOut aria-hidden="true" />
           Leave

@@ -1,6 +1,6 @@
 # Interplanetary Presence
 
-A two-person React, TypeScript, Vite and Three.js experience for communicating between Earth, the Moon and a Space Station. Each person joins an invite-only room, chooses a station and sends a message through four automatic stages:
+A two-person React, TypeScript, Vite and Three.js experience for communicating between Earth, the Moon and a Space Station. A host creates an open lobby with their location, another visitor joins it directly, and each message moves through four automatic stages:
 
 1. Typed text
 2. Generated voice using the same text
@@ -26,7 +26,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
 
 Use the project URL and publishable key from the Supabase Connect dialog. Keep public channel access enabled under Realtime settings. The publishable key is intended for browser clients; never add a Supabase secret key to this project.
 
-Open the local URL printed by Vite. Create a room in one tab, copy its invite URL, and join it in another tab or device.
+Open the local URL printed by Vite. Create an open lobby in one tab, then select that visible host from another tab or device. Lobby routing identifiers stay internal; neither person enters a room code.
 
 For a single offline file:
 
@@ -56,7 +56,7 @@ pnpm build
 
 ## Interaction
 
-Create or join a room, choose Earth, Moon or Space Station, then copy the invite link to the second person. The room creator types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
+Enter your name and choose Earth, Moon or Space Station. Create an open lobby, or join a listed host from a different location. The lobby closes automatically when the second person arrives. The host types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
 
 The sequence runs automatically. Its progress rail is read-only, and timing changes with the selected station pair.
 

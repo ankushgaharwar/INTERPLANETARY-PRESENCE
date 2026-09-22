@@ -1,10 +1,17 @@
 import { ArrowRight, Plus, Radio, UsersRound } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { realtimeConfig } from "../realtime/config";
-import { STATIONS } from "../realtime/stations";
-import type { RoomSession, StationId } from "../realtime/types";
+import { STATION_BY_ID, STATIONS } from "../realtime/stations";
+import type {
+  OpenLobby,
+  RoomConnectionStatus,
+  RoomSession,
+  StationId
+} from "../realtime/types";
 
 interface RoomLobbyProps {
+  lobbies: OpenLobby[];
+  directoryStatus: RoomConnectionStatus;
   onEnter: (session: RoomSession) => void;
 }
 
@@ -17,39 +24,28 @@ const createRoomCode = () => {
     .join("");
 };
 
-const cleanRoomCode = (value: string) =>
-  value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-
-export function RoomLobby({ onEnter }: RoomLobbyProps) {
-  const initialRoomCode = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
-    return cleanRoomCode(params.get("room") ?? "");
-  }, []);
+export function RoomLobby({
+  lobbies,
+  directoryStatus,
+  onEnter
+}: RoomLobbyProps) {
   const [displayName, setDisplayName] = useState(
     () => window.localStorage.getItem("presence-display-name") ?? ""
   );
   const [station, setStation] = useState<StationId>("earth");
-  const [roomCode, setRoomCode] = useState(initialRoomCode);
-  const [entryMode, setEntryMode] = useState<"create" | "join">(
-    initialRoomCode ? "join" : "create"
-  );
   const [error, setError] = useState("");
 
-  const enterRoom = (role: RoomSession["role"], code: string) => {
+  const enterRoom = (role: RoomSession["role"], roomCode: string) => {
     const name = displayName.trim();
     if (!name) {
       setError("Enter your name to continue.");
-      return;
-    }
-    if (!code) {
-      setError("Enter a room code to join.");
       return;
     }
 
     window.localStorage.setItem("presence-display-name", name);
     setError("");
     onEnter({
-      roomCode: code,
+      roomCode,
       clientId: crypto.randomUUID(),
       displayName: name,
       station,
@@ -57,57 +53,60 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
     });
   };
 
+  const joinLobby = (lobby: OpenLobby) => {
+    if (lobby.hostStation === station) {
+      setError(`Choose a different location from ${lobby.hostName}.`);
+      return;
+    }
+    enterRoom("daughter", lobby.roomCode);
+  };
+
   return (
     <main className="lobby-shell">
       <header className="lobby-header">
         <div className="brand-block">
           <p>Interplanetary Presence</p>
-          <h1>Shared Presence</h1>
+          <h1>Earth · Moon · Space Station</h1>
         </div>
-        <div className={`network-mode ${realtimeConfig.hosted ? "is-live" : ""}`}>
+        <div
+          className={`network-mode ${directoryStatus === "connected" ? "is-live" : ""}`}
+        >
           <Radio aria-hidden="true" />
-          <span>{realtimeConfig.hosted ? "Online rooms" : "Browser demo"}</span>
+          <span>
+            {directoryStatus === "connected"
+              ? realtimeConfig.hosted
+                ? "Open lobbies live"
+                : "Browser lobbies live"
+              : directoryStatus === "error"
+                ? "Lobby directory unavailable"
+                : "Finding open lobbies"}
+          </span>
         </div>
       </header>
 
       <section className="room-entry" aria-labelledby="room-entry-title">
         <div className="entry-heading">
           <p className="eyebrow">two-person spatial session</p>
-          <h2 id="room-entry-title">
-            {entryMode === "create" ? "Create a presence room" : "Join a presence room"}
-          </h2>
+          <h2 id="room-entry-title">Create or join an open lobby</h2>
         </div>
 
-        <nav className="entry-modes" aria-label="Room action">
-          <button
-            type="button"
-            className={entryMode === "create" ? "is-active" : ""}
-            aria-pressed={entryMode === "create"}
-            onClick={() => {
-              setEntryMode("create");
+        <label className="profile-name">
+          <span>Your name</span>
+          <input
+            value={displayName}
+            maxLength={32}
+            autoComplete="name"
+            placeholder="Name"
+            onChange={(event) => {
+              setDisplayName(event.target.value);
               setError("");
             }}
-          >
-            <Plus aria-hidden="true" />
-            Create room
-          </button>
-          <button
-            type="button"
-            className={entryMode === "join" ? "is-active" : ""}
-            aria-pressed={entryMode === "join"}
-            onClick={() => {
-              setEntryMode("join");
-              setError("");
-            }}
-          >
-            <UsersRound aria-hidden="true" />
-            Join room
-          </button>
-        </nav>
+          />
+        </label>
 
         <div className="entry-section-heading">
           <span>Your location</span>
-          <strong>{STATIONS.find(({ id }) => id === station)?.label}</strong>
+          <strong>{STATION_BY_ID[station].label}</strong>
         </div>
 
         <div className="station-picker" role="radiogroup" aria-label="Station">
@@ -132,61 +131,77 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
           ))}
         </div>
 
-        <form
-          className={`room-form is-${entryMode}`}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (entryMode === "create") {
-              enterRoom("father", createRoomCode());
-            } else {
-              enterRoom("daughter", roomCode);
-            }
-          }}
-        >
-          <label>
-            <span>Your name</span>
-            <input
-              value={displayName}
-              maxLength={32}
-              autoComplete="name"
-              placeholder="Name"
-              onChange={(event) => {
-                setDisplayName(event.target.value);
-                setError("");
-              }}
-            />
-          </label>
-          {entryMode === "join" ? (
-            <label>
-              <span>Room code</span>
-              <input
-                value={roomCode}
-                maxLength={12}
-                autoCapitalize="characters"
-                autoComplete="off"
-                placeholder="8-character code"
-                onChange={(event) => {
-                  setRoomCode(cleanRoomCode(event.target.value));
-                  setError("");
-                }}
-              />
-            </label>
-          ) : null}
-
-          {error ? <p className="room-error" role="alert">{error}</p> : null}
-
-          <div className="room-actions">
-            <button
-              className="enter-room"
-              type="submit"
-              disabled={entryMode === "join" && !roomCode}
-            >
-              {entryMode === "create" ? <Plus aria-hidden="true" /> : <UsersRound aria-hidden="true" />}
-              {entryMode === "create" ? "Create room" : "Join room"}
-              <ArrowRight aria-hidden="true" />
-            </button>
+        <div className="create-lobby-row">
+          <div>
+            <strong>Host from {STATION_BY_ID[station].label}</strong>
+            <small>Your name and location will appear below for others.</small>
           </div>
-        </form>
+          <button
+            className="enter-room"
+            type="button"
+            onClick={() => enterRoom("father", createRoomCode())}
+          >
+            <Plus aria-hidden="true" />
+            Create open lobby
+          </button>
+        </div>
+
+        {error ? (
+          <p className="room-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <section className="open-lobbies" aria-labelledby="open-lobbies-title">
+          <header className="open-lobbies-heading">
+            <div>
+              <p className="eyebrow">available now</p>
+              <h3 id="open-lobbies-title">Open lobbies</h3>
+            </div>
+            <span>{lobbies.length} waiting</span>
+          </header>
+
+          <div className="open-lobby-list" aria-live="polite">
+            {lobbies.length === 0 ? (
+              <p className="empty-lobbies">
+                {directoryStatus === "connecting"
+                  ? "Looking for hosts..."
+                  : "No one is waiting yet. Create the first open lobby."}
+              </p>
+            ) : (
+              lobbies.map((lobby) => {
+                const stationInfo = STATION_BY_ID[lobby.hostStation];
+                const StationIcon = stationInfo.icon;
+                const sameStation = lobby.hostStation === station;
+                return (
+                  <article className="open-lobby-row" key={lobby.roomCode}>
+                    <span className="lobby-station-icon" aria-hidden="true">
+                      <StationIcon />
+                    </span>
+                    <div className="open-lobby-copy">
+                      <strong>{lobby.hostName}</strong>
+                      <span>
+                        Hosting from {stationInfo.label} · {stationInfo.detail}
+                      </span>
+                      {sameStation ? (
+                        <small>Choose another location to join</small>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={sameStation}
+                      onClick={() => joinLobby(lobby)}
+                    >
+                      <UsersRound aria-hidden="true" />
+                      Join
+                      <ArrowRight aria-hidden="true" />
+                    </button>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </section>
       </section>
     </main>
   );

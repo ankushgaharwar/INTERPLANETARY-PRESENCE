@@ -14,14 +14,20 @@ describe("RoomLobby", () => {
 
   it("creates a room from the selected station", () => {
     const onEnter = vi.fn();
-    render(<RoomLobby onEnter={onEnter} />);
+    render(
+      <RoomLobby
+        lobbies={[]}
+        directoryStatus="connected"
+        onEnter={onEnter}
+      />
+    );
 
     expect(screen.queryByLabelText("Room code")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Your name"), {
       target: { value: "Alex" }
     });
     fireEvent.click(screen.getByRole("radio", { name: /Moon/ }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Create room" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Create open lobby" }));
 
     expect(onEnter).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -33,25 +39,40 @@ describe("RoomLobby", () => {
     );
   });
 
-  it("opens invite links in join mode", () => {
-    window.history.replaceState({}, "", "/?room=moon-42");
+  it("joins a visible host without asking for a room code", () => {
     const onEnter = vi.fn();
-    render(<RoomLobby onEnter={onEnter} />);
+    render(
+      <RoomLobby
+        lobbies={[
+          {
+            roomCode: "MOON42",
+            hostClientId: "host-1",
+            hostName: "Alex",
+            hostStation: "earth",
+            advertisedAt: Date.now()
+          }
+        ]}
+        directoryStatus="connected"
+        onEnter={onEnter}
+      />
+    );
 
-    expect(screen.getByRole("heading", { name: "Join a presence room" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Room code")).toHaveValue("MOON42");
+    expect(screen.getByRole("heading", { name: "Open lobbies" })).toBeInTheDocument();
+    expect(screen.getByText("Alex")).toBeInTheDocument();
+    expect(screen.getByText(/Hosting from Earth/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Room code")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Your name"), {
       target: { value: "Maya" }
     });
-    fireEvent.click(screen.getByRole("radio", { name: /Space Station/ }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Join room" })[1]);
+    fireEvent.click(screen.getByRole("radio", { name: /Moon/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
     expect(onEnter).toHaveBeenCalledWith(
       expect.objectContaining({
         displayName: "Maya",
         role: "daughter",
-        station: "spaceStation",
+        station: "moon",
         roomCode: "MOON42"
       })
     );

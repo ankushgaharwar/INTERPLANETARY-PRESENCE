@@ -14,6 +14,14 @@ export interface RoomPeer extends RoomSession {
   joinedAt: string;
 }
 
+export interface OpenLobby {
+  roomCode: string;
+  hostClientId: string;
+  hostName: string;
+  hostStation: StationId;
+  advertisedAt: number;
+}
+
 export interface RoomMessage {
   id: string;
   roomCode: string;

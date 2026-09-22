@@ -75,7 +75,7 @@ export function PresenceComposer({
   const status = !connectionReady
     ? "Connecting to the shared room"
     : !peerConnected && canSend
-      ? "Solo preview · send now or invite a second person"
+      ? "Solo preview · send now or wait for someone to join"
       : !peerConnected
         ? "Solo preview · presence transmission in progress"
         : !localTurn

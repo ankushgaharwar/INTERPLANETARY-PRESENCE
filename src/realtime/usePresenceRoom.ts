@@ -28,13 +28,21 @@ interface LocalMessageEnvelope {
 
 interface LocalHelloEnvelope {
   kind: "hello";
+  clientId: string;
+}
+
+interface LocalHistoryEnvelope {
+  kind: "history";
+  recipientId: string;
+  messages: RoomMessage[];
 }
 
 type LocalEnvelope =
   | LocalPresenceEnvelope
   | LocalLeaveEnvelope
   | LocalMessageEnvelope
-  | LocalHelloEnvelope;
+  | LocalHelloEnvelope
+  | LocalHistoryEnvelope;
 
 const isRoomMessage = (value: unknown): value is RoomMessage => {
   if (!value || typeof value !== "object") {
@@ -64,6 +72,7 @@ export function usePresenceRoom(session: RoomSession | null) {
     useState<RoomConnectionStatus>("disconnected");
   const [peers, setPeers] = useState<RoomPeer[]>([]);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const messagesRef = useRef<RoomMessage[]>([]);
   const [error, setError] = useState("");
   const sendRef = useRef<(message: RoomMessage) => Promise<boolean>>(async () =>
     false
@@ -75,14 +84,17 @@ export function usePresenceRoom(session: RoomSession | null) {
         return current;
       }
 
-      return [...current, message].sort(
+      const next = [...current, message].sort(
         (first, second) => first.sentAt - second.sentAt || first.id.localeCompare(second.id)
       );
+      messagesRef.current = next;
+      return next;
     });
   }, []);
 
   useEffect(() => {
     setMessages([]);
+    messagesRef.current = [];
     setError("");
     if (!session) {
       setStatus("disconnected");
@@ -127,6 +139,19 @@ export function usePresenceRoom(session: RoomSession | null) {
         const envelope = event.data;
         if (envelope.kind === "hello") {
           publishPresence();
+          if (localPeer.role === "father" && messagesRef.current.length > 0) {
+            channel.postMessage({
+              kind: "history",
+              recipientId: envelope.clientId,
+              messages: messagesRef.current
+            } satisfies LocalEnvelope);
+          }
+          return;
+        }
+        if (envelope.kind === "history") {
+          if (envelope.recipientId === localPeer.clientId) {
+            envelope.messages.filter(isRoomMessage).forEach(addMessage);
+          }
           return;
         }
         if (envelope.kind === "message" && isRoomMessage(envelope.message)) {
@@ -154,7 +179,10 @@ export function usePresenceRoom(session: RoomSession | null) {
       };
 
       setStatus("connected");
-      channel.postMessage({ kind: "hello" } satisfies LocalEnvelope);
+      channel.postMessage({
+        kind: "hello",
+        clientId: localPeer.clientId
+      } satisfies LocalEnvelope);
       publishPresence();
       const heartbeat = window.setInterval(publishPresence, 4_000);
       const pruning = window.setInterval(syncPeers, 4_000);
@@ -213,6 +241,39 @@ export function usePresenceRoom(session: RoomSession | null) {
             addMessage(payload);
           }
         })
+        .on(
+          "broadcast",
+          { event: "presence-history-request" },
+          ({ payload }) => {
+            const requesterId =
+              payload && typeof payload.requesterId === "string"
+                ? payload.requesterId
+                : "";
+            if (
+              localPeer.role === "father" &&
+              requesterId &&
+              requesterId !== localPeer.clientId &&
+              messagesRef.current.length > 0
+            ) {
+              void channel.send({
+                type: "broadcast",
+                event: "presence-history",
+                payload: {
+                  recipientId: requesterId,
+                  messages: messagesRef.current
+                }
+              });
+            }
+          }
+        )
+        .on("broadcast", { event: "presence-history" }, ({ payload }) => {
+          if (
+            payload?.recipientId === localPeer.clientId &&
+            Array.isArray(payload.messages)
+          ) {
+            payload.messages.filter(isRoomMessage).forEach(addMessage);
+          }
+        })
         .subscribe(async (channelStatus) => {
           if (disposed) {
             return;
@@ -222,6 +283,11 @@ export function usePresenceRoom(session: RoomSession | null) {
             if (trackStatus === "ok") {
               setStatus("connected");
               setError("");
+              void channel.send({
+                type: "broadcast",
+                event: "presence-history-request",
+                payload: { requesterId: localPeer.clientId }
+              });
             } else {
               setStatus("error");
               setError("The room connected, but presence could not be published.");
