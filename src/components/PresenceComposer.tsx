@@ -1,4 +1,4 @@
-import { ArrowRight, Check, Circle, Radio, Send } from "lucide-react";
+import { Check, Circle, Radio, Send } from "lucide-react";
 import { useState } from "react";
 import {
   PRESENCE_BY_ID,
@@ -83,12 +83,27 @@ export function PresenceComposer({
             : complete
               ? `Full presence received · ${participantNames[nextSender]} can reply`
               : `Waiting for ${participantNames[lastSent.recipient]} to receive all three forms`;
+  const turnSummary = !connectionReady
+    ? "Connecting"
+    : !peerConnected
+      ? "Room open"
+      : canSend
+        ? `Your turn · to ${participantNames[recipient]}`
+        : !localTurn
+          ? `${participantNames[nextSender]}'s turn`
+          : "Receiving presence";
 
   return (
     <section className="presence-composer" aria-label="Transmit presence">
       <div className="composer-status" aria-live="polite">
-        <Radio aria-hidden="true" />
-        <span>{status}</span>
+        <div className="composer-status-copy">
+          <Radio aria-hidden="true" />
+          <span>
+            <strong>Live transmission</strong>
+            <small>{status}</small>
+          </span>
+        </div>
+        <span className="composer-turn">{turnSummary}</span>
       </div>
 
       <form
@@ -98,12 +113,6 @@ export function PresenceComposer({
           void submitMessage();
         }}
       >
-        <div className="composer-turn" aria-label={`${participantNames[nextSender]} to ${participantNames[recipient]}`}>
-          <strong>{participantNames[nextSender]}</strong>
-          <ArrowRight aria-hidden="true" />
-          <span>{participantNames[recipient]}</span>
-        </div>
-
         <label className="composer-input">
           <span className="sr-only">Message</span>
           <textarea
@@ -113,7 +122,7 @@ export function PresenceComposer({
             disabled={!canSend}
             placeholder={
               canSend
-                ? "Send a presence message..."
+                ? "Send a chat message..."
                 : !peerConnected
                   ? "Waiting for the second person..."
                   : !localTurn
@@ -133,11 +142,11 @@ export function PresenceComposer({
         <button
           className="send-presence"
           type="submit"
-          aria-label="Transmit presence"
+          aria-label="Send message"
           disabled={!draft.trim() || !canSend}
         >
           <Send aria-hidden="true" />
-          <span>Transmit</span>
+          <span>Send</span>
         </button>
       </form>
 

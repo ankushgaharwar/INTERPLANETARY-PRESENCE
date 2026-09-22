@@ -410,19 +410,19 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
 
       {mode === "experience" ? (
         <section className="experience-view" aria-labelledby="experience-title">
-          <div className="spatial-stage">
-            <div className="stage-heading">
-              <div>
-                <p className="eyebrow">shared spatial session</p>
-                <h2 id="experience-title">Presence arrives in layers</h2>
-                <div
-                  className="turn-route"
-                  aria-label={`${participantNames[focusMessage.sender]} to ${participantNames[recipient]}`}
-                >
-                  <span>{participantNames[focusMessage.sender]}</span>
-                  <ArrowRight aria-hidden="true" />
-                  <span>{participantNames[recipient]}</span>
-                </div>
+          <header className="experience-heading">
+            <div>
+              <p className="eyebrow">shared spatial session</p>
+              <h2 id="experience-title">Presence arrives in layers</h2>
+            </div>
+            <div className="experience-context">
+              <div
+                className="turn-route"
+                aria-label={`${participantNames[focusMessage.sender]} to ${participantNames[recipient]}`}
+              >
+                <span>{participantNames[focusMessage.sender]}</span>
+                <ArrowRight aria-hidden="true" />
+                <span>{participantNames[recipient]}</span>
               </div>
               <div className="stage-metrics">
                 <span>{(distanceMeters / 1000).toLocaleString()} km</span>
@@ -430,7 +430,9 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
                 <strong>{formatClock(simulationTime)}</strong>
               </div>
             </div>
+          </header>
 
+          <div className="spatial-stage">
             <SpatialScene
               events={events}
               focusMessageId={focusMessage.id}

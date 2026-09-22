@@ -1377,7 +1377,10 @@ export function SpatialScene({
         environmentScaleY,
         environmentScaleZ
       );
-      camera.position.z = compact ? 11.7 : medium ? 10.2 : 8.6;
+      const compactAspect = width / height;
+      const compactCameraDistance =
+        compactAspect > 1.8 ? 6.4 : compactAspect > 1.1 ? 8.6 : 11.7;
+      camera.position.z = compact ? compactCameraDistance : medium ? 10.2 : 8.6;
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();

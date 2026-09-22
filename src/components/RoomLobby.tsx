@@ -30,6 +30,9 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
   );
   const [station, setStation] = useState<StationId>("earth");
   const [roomCode, setRoomCode] = useState(initialRoomCode);
+  const [entryMode, setEntryMode] = useState<"create" | "join">(
+    initialRoomCode ? "join" : "create"
+  );
   const [error, setError] = useState("");
 
   const enterRoom = (role: RoomSession["role"], code: string) => {
@@ -59,18 +62,52 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
       <header className="lobby-header">
         <div className="brand-block">
           <p>Interplanetary Presence</p>
-          <h1>Shared Presence Room</h1>
+          <h1>Shared Presence</h1>
         </div>
         <div className={`network-mode ${realtimeConfig.hosted ? "is-live" : ""}`}>
           <Radio aria-hidden="true" />
-          <span>{realtimeConfig.hosted ? "Online rooms" : "Local preview"}</span>
+          <span>{realtimeConfig.hosted ? "Online rooms" : "Browser demo"}</span>
         </div>
       </header>
 
       <section className="room-entry" aria-labelledby="room-entry-title">
         <div className="entry-heading">
-          <p className="eyebrow">join a shared spatial session</p>
-          <h2 id="room-entry-title">Choose your station</h2>
+          <p className="eyebrow">two-person spatial session</p>
+          <h2 id="room-entry-title">
+            {entryMode === "create" ? "Create a presence room" : "Join a presence room"}
+          </h2>
+        </div>
+
+        <nav className="entry-modes" aria-label="Room action">
+          <button
+            type="button"
+            className={entryMode === "create" ? "is-active" : ""}
+            aria-pressed={entryMode === "create"}
+            onClick={() => {
+              setEntryMode("create");
+              setError("");
+            }}
+          >
+            <Plus aria-hidden="true" />
+            Create room
+          </button>
+          <button
+            type="button"
+            className={entryMode === "join" ? "is-active" : ""}
+            aria-pressed={entryMode === "join"}
+            onClick={() => {
+              setEntryMode("join");
+              setError("");
+            }}
+          >
+            <UsersRound aria-hidden="true" />
+            Join room
+          </button>
+        </nav>
+
+        <div className="entry-section-heading">
+          <span>Your location</span>
+          <strong>{STATIONS.find(({ id }) => id === station)?.label}</strong>
         </div>
 
         <div className="station-picker" role="radiogroup" aria-label="Station">
@@ -81,7 +118,10 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
               type="button"
               role="radio"
               aria-checked={station === id}
-              onClick={() => setStation(id)}
+              onClick={() => {
+                setStation(id);
+                setError("");
+              }}
             >
               <Icon aria-hidden="true" />
               <span>
@@ -93,10 +133,14 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
         </div>
 
         <form
-          className="room-form"
+          className={`room-form is-${entryMode}`}
           onSubmit={(event) => {
             event.preventDefault();
-            enterRoom("daughter", roomCode);
+            if (entryMode === "create") {
+              enterRoom("father", createRoomCode());
+            } else {
+              enterRoom("daughter", roomCode);
+            }
           }}
         >
           <label>
@@ -106,35 +150,39 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
               maxLength={32}
               autoComplete="name"
               placeholder="Name"
-              onChange={(event) => setDisplayName(event.target.value)}
+              onChange={(event) => {
+                setDisplayName(event.target.value);
+                setError("");
+              }}
             />
           </label>
-          <label>
-            <span>Room code</span>
-            <input
-              value={roomCode}
-              maxLength={12}
-              autoCapitalize="characters"
-              autoComplete="off"
-              placeholder="8-character code"
-              onChange={(event) => setRoomCode(cleanRoomCode(event.target.value))}
-            />
-          </label>
+          {entryMode === "join" ? (
+            <label>
+              <span>Room code</span>
+              <input
+                value={roomCode}
+                maxLength={12}
+                autoCapitalize="characters"
+                autoComplete="off"
+                placeholder="8-character code"
+                onChange={(event) => {
+                  setRoomCode(cleanRoomCode(event.target.value));
+                  setError("");
+                }}
+              />
+            </label>
+          ) : null}
 
           {error ? <p className="room-error" role="alert">{error}</p> : null}
 
           <div className="room-actions">
             <button
-              className="create-room"
-              type="button"
-              onClick={() => enterRoom("father", createRoomCode())}
+              className="enter-room"
+              type="submit"
+              disabled={entryMode === "join" && !roomCode}
             >
-              <Plus aria-hidden="true" />
-              Create room
-            </button>
-            <button className="join-room" type="submit" disabled={!roomCode}>
-              <UsersRound aria-hidden="true" />
-              Join room
+              {entryMode === "create" ? <Plus aria-hidden="true" /> : <UsersRound aria-hidden="true" />}
+              {entryMode === "create" ? "Create room" : "Join room"}
               <ArrowRight aria-hidden="true" />
             </button>
           </div>

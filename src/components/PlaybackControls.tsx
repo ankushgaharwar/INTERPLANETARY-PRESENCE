@@ -3,11 +3,13 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Settings2,
   StepForward,
   Volume2,
   VolumeX,
   Waves
 } from "lucide-react";
+import { useRef } from "react";
 
 export type AppMode = "experience" | "system";
 
@@ -46,6 +48,9 @@ export function PlaybackControls({
   onMutedChange,
   onReducedMotionChange
 }: PlaybackControlsProps) {
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const closeMenu = () => menuRef.current?.removeAttribute("open");
+
   const togglePlayback = () => {
     if (isRunning) {
       onPause();
@@ -90,39 +95,6 @@ export function PlaybackControls({
         <button
           type="button"
           className="icon-button"
-          onClick={onStep}
-          aria-label="Step to next event"
-          title="Step to next event"
-        >
-          <StepForward aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="icon-button"
-          onClick={onReset}
-          aria-label="Reset simulation"
-          title="Reset"
-        >
-          <RotateCcw aria-hidden="true" />
-        </button>
-        <label className="speed-control">
-          <Gauge aria-hidden="true" />
-          <span className="sr-only">Playback speed</span>
-          <select
-            value={speed}
-            aria-label="Playback speed"
-            onChange={(event) => onSpeedChange(Number(event.target.value))}
-          >
-            {[0.5, 1, 2, 4].map((option) => (
-              <option value={option} key={option}>
-                {option}x
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          className="icon-button"
           aria-pressed={muted}
           onClick={() => onMutedChange(!muted)}
           aria-label={muted ? "Unmute voice" : "Mute voice"}
@@ -130,16 +102,67 @@ export function PlaybackControls({
         >
           {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
         </button>
-        <button
-          type="button"
-          className={`icon-button ${reducedMotion ? "is-active" : ""}`}
-          aria-pressed={reducedMotion}
-          onClick={() => onReducedMotionChange(!reducedMotion)}
-          aria-label="Reduce motion"
-          title="Reduce motion"
-        >
-          <Waves aria-hidden="true" />
-        </button>
+        <details className="playback-menu" ref={menuRef}>
+          <summary
+            className="icon-button"
+            aria-label="Playback settings"
+            title="Playback settings"
+          >
+            <Settings2 aria-hidden="true" />
+          </summary>
+          <div className="playback-menu-panel">
+            <button
+              type="button"
+              onClick={() => {
+                onStep();
+                closeMenu();
+              }}
+            >
+              <StepForward aria-hidden="true" />
+              Next stage
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onReset();
+                closeMenu();
+              }}
+            >
+              <RotateCcw aria-hidden="true" />
+              Replay
+            </button>
+            <label className="speed-control">
+              <Gauge aria-hidden="true" />
+              <span>Speed</span>
+              <select
+                value={speed}
+                aria-label="Playback speed"
+                onChange={(event) => {
+                  onSpeedChange(Number(event.target.value));
+                  closeMenu();
+                }}
+              >
+                {[0.5, 1, 2, 4].map((option) => (
+                  <option value={option} key={option}>
+                    {option}x
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="motion-toggle">
+              <Waves aria-hidden="true" />
+              <span>Reduce motion</span>
+              <input
+                type="checkbox"
+                checked={reducedMotion}
+                onChange={(event) => {
+                  onReducedMotionChange(event.target.checked);
+                  closeMenu();
+                }}
+              />
+            </label>
+          </div>
+        </details>
       </div>
     </div>
   );
