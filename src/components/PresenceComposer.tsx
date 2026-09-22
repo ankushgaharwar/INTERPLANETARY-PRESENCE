@@ -92,6 +92,24 @@ export function PresenceComposer({
         : !localTurn
           ? `${participantNames[nextSender]}'s turn`
           : "Receiving presence";
+  const draftPlaceholder = canSend
+    ? "Send a chat message..."
+    : !connectionReady
+      ? "Write while the room connects..."
+      : !peerConnected
+        ? "Write a message while waiting for the second person..."
+        : !localTurn
+          ? `Write your reply while ${participantNames[nextSender]} transmits...`
+          : "Write your reply while presence reconstruction finishes...";
+  const sendTitle = !connectionReady
+    ? "Send unlocks when the room connects"
+    : !peerConnected
+      ? "Send unlocks when the second person joins"
+      : !localTurn
+        ? `Send unlocks after ${participantNames[nextSender]}'s turn`
+        : !complete && lastSent
+          ? "Send unlocks after point-cloud reconstruction"
+          : "Send message";
 
   return (
     <section className="presence-composer" aria-label="Transmit presence">
@@ -119,16 +137,7 @@ export function PresenceComposer({
             value={draft}
             maxLength={280}
             rows={1}
-            disabled={!canSend}
-            placeholder={
-              canSend
-                ? "Send a chat message..."
-                : !peerConnected
-                  ? "Waiting for the second person..."
-                  : !localTurn
-                    ? `Waiting for ${participantNames[nextSender]}...`
-                    : "Reply unlocks after point-cloud reconstruction"
-            }
+            placeholder={draftPlaceholder}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -143,6 +152,7 @@ export function PresenceComposer({
           className="send-presence"
           type="submit"
           aria-label="Send message"
+          title={sendTitle}
           disabled={!draft.trim() || !canSend}
         >
           <Send aria-hidden="true" />
