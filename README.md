@@ -1,10 +1,11 @@
 # Interplanetary Presence
 
-A two-person React, TypeScript, Vite and Three.js experience for communicating between Earth, the Moon and a Space Station. Each person joins an invite-only room, chooses a station and sends chat messages as three progressively richer forms:
+A two-person React, TypeScript, Vite and Three.js experience for communicating between Earth, the Moon and a Space Station. Each person joins an invite-only room, chooses a station and sends a message through four automatic stages:
 
-1. Voice
-2. Facial expression, motion and intent
-3. Point-cloud body and surrounding space
+1. Typed text
+2. Generated voice using the same text
+3. Facial expression, motion and intent
+4. Point-cloud body and surrounding space
 
 Supabase Realtime Broadcast carries messages and Presence tracks the two connected participants. No database table is required. When Supabase is not configured, the app uses `BroadcastChannel` so the room flow can be tested in two tabs on the same computer.
 
@@ -55,9 +56,9 @@ pnpm build
 
 ## Interaction
 
-Create or join a room, choose Earth, Moon or Space Station, then copy the invite link to the second person. The room creator speaks first. Each reply unlocks only after voice, expression/motion/intent and the environment point cloud reach the other participant.
+Create or join a room, choose Earth, Moon or Space Station, then copy the invite link to the second person. The room creator types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
 
-Use Play, Pause, Step and Reset to replay or inspect the presence sequence. Select a form below the spatial scene to emphasize its VR representation.
+The sequence runs automatically. Its progress rail is read-only, and timing changes with the selected station pair.
 
 The System design view includes controls for communication bandwidth and point-cloud reconstruction time.
 
@@ -81,7 +82,7 @@ readyTime =
   reconstructionTime;
 ```
 
-With the reference settings, voice is ready at approximately 1.283 seconds, expression/motion/intent at 2.177 seconds, and the point cloud at 7.003 seconds after capture. Every stream shares the same light-speed propagation floor; payload, staging and reconstruction create the perceptual sequence.
+With the reference Earth-Moon settings, text is ready at approximately 1.282 seconds, generated voice at 2.033 seconds, expression/motion/intent at 2.927 seconds, and the point cloud at 7.753 seconds after capture. For Earth-Space Station, propagation is approximately 0.00136 seconds instead of 1.282 seconds. Every stream shares the same light-speed propagation floor; payload, staging and reconstruction create the perceptual sequence.
 
 ## Reference sources
 

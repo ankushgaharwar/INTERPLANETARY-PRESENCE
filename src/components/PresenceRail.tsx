@@ -7,7 +7,6 @@ interface PresenceRailProps {
   events: TransmissionEvent[];
   simulationTime: number;
   selectedForm: PresenceFormId;
-  onSelect: (form: PresenceFormId) => void;
 }
 
 const stateLabels = {
@@ -22,11 +21,10 @@ const stateLabels = {
 export function PresenceRail({
   events,
   simulationTime,
-  selectedForm,
-  onSelect
+  selectedForm
 }: PresenceRailProps) {
   return (
-    <div className="presence-rail" aria-label="Three forms of presence">
+    <div className="presence-rail" role="list" aria-label="Automatic transmission sequence">
       {PRESENCE_FORMS.map((form, index) => {
         const event = events.find((candidate) => candidate.presenceForm === form.id);
         const snapshot = event ? getSnapshot(event, simulationTime) : null;
@@ -45,12 +43,11 @@ export function PresenceRail({
           : 0;
 
         return (
-          <button
-            type="button"
+          <div
+            role="listitem"
             key={form.id}
             className={`presence-step ${selectedForm === form.id ? "is-selected" : ""}`}
-            aria-pressed={selectedForm === form.id}
-            onClick={() => onSelect(form.id)}
+            aria-current={selectedForm === form.id ? "step" : undefined}
           >
             <span className="step-index">0{index + 1}</span>
             <span className="step-copy">
@@ -67,7 +64,7 @@ export function PresenceRail({
             <span className="step-progress" aria-hidden="true">
               <span style={{ width: `${progress * 100}%` }} />
             </span>
-          </button>
+          </div>
         );
       })}
     </div>

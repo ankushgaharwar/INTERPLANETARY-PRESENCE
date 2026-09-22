@@ -20,6 +20,9 @@ import type {
 
 const ARRIVED_STATE_SECONDS = 0.22;
 
+const calculateTextPayloadBits = (text: string) =>
+  Math.max(8, new TextEncoder().encode(text).byteLength * 8);
+
 export const calculatePropagationTime = (
   distanceMeters: number,
   speedMetersPerSecond: number
@@ -86,7 +89,10 @@ export const buildTransmissionEvents = (
 
       const turnEvents = messageForms.map((form) => {
         const sentAt = captureTime + (offsets[form.id] ?? 0);
-        const payloadBits = settings.payloadBits[form.id];
+        const payloadBits =
+          form.id === "text"
+            ? calculateTextPayloadBits(message.text)
+            : settings.payloadBits[form.id];
         const transmissionTime = calculateTransmissionTime(
           payloadBits,
           settings.linkRateMbps

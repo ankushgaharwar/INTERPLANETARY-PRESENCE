@@ -42,6 +42,8 @@ interface CharacterMaterials {
 interface MonitorRig {
   group: THREE.Group;
   screenMaterial: THREE.MeshStandardMaterial;
+  textLines: THREE.Group;
+  textMaterial: THREE.MeshBasicMaterial;
   voiceRings: THREE.Group;
   voiceMaterial: THREE.MeshBasicMaterial;
   expressionRig: AvatarRig;
@@ -52,6 +54,7 @@ interface MonitorRig {
 }
 
 const formColors: Record<PresenceFormId, number> = {
+  text: 0xb9c3d1,
   voice: 0x8fdcff,
   expression: 0xffd36a,
   pointCloud: 0xef8fc5
@@ -1012,6 +1015,22 @@ const createMonitor = (
   base.position.y = 0.08;
   group.add(frame, screen, stand, base);
 
+  const textMaterial = new THREE.MeshBasicMaterial({
+    color: formColors.text,
+    transparent: true,
+    opacity: 0
+  });
+  const textLines = new THREE.Group();
+  [0.72, 0.56, 0.64].forEach((width, index) => {
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(width, 0.035, 0.018),
+      textMaterial
+    );
+    line.position.set(-0.16 + width * 0.08, 1.66 - index * 0.14, 0.13);
+    textLines.add(line);
+  });
+  group.add(textLines);
+
   const voiceMaterial = new THREE.MeshBasicMaterial({
     color: formColors.voice,
     transparent: true,
@@ -1075,7 +1094,11 @@ const createMonitor = (
         new THREE.BoxGeometry(0.27, 0.025, 0.018),
         material
       );
-      indicator.position.set(-0.36 + index * 0.36, 0.76, 0.12);
+      indicator.position.set(
+        (index - (PRESENCE_SEQUENCE.length - 1) / 2) * 0.28,
+        0.76,
+        0.12
+      );
       group.add(indicator);
       indicators[form] = material;
       return indicators;
@@ -1086,6 +1109,8 @@ const createMonitor = (
   return {
     group,
     screenMaterial,
+    textLines,
+    textMaterial,
     voiceRings,
     voiceMaterial,
     expressionRig,
@@ -1141,6 +1166,7 @@ const updateMonitor = (
   elapsed: number,
   reducedMotion: boolean
 ) => {
+  const text = events.find((event) => event.presenceForm === "text");
   const voice = events.find((event) => event.presenceForm === "voice");
   const expression = events.find(
     (event) => event.presenceForm === "expression"
@@ -1148,6 +1174,7 @@ const updateMonitor = (
   const pointCloud = events.find(
     (event) => event.presenceForm === "pointCloud"
   );
+  const textReady = Boolean(text && simulationTime >= text.renderReadyAt);
   const voiceReady = Boolean(voice && simulationTime >= voice.renderReadyAt);
   const expressionReady = Boolean(
     expression && simulationTime >= expression.renderReadyAt
@@ -1161,6 +1188,14 @@ const updateMonitor = (
             (simulationTime - pointCloud.networkArrivalTime) /
               pointCloud.reconstructionTime
           )
+    : 0;
+
+  monitor.textMaterial.opacity = textReady
+    ? voiceReady
+      ? 0.18
+      : selectedForm === "text"
+        ? 0.9
+        : 0.62
     : 0;
 
   monitor.voiceMaterial.opacity = voiceReady
@@ -1198,8 +1233,17 @@ const updateMonitor = (
     ? 0
     : Math.sin(elapsed * 0.55) * 0.08;
   monitor.screenMaterial.emissiveIntensity =
-    pointProgress > 0 ? 0.16 : expressionReady ? 0.11 : voiceReady ? 0.08 : 0.035;
+    pointProgress > 0
+      ? 0.16
+      : expressionReady
+        ? 0.11
+        : voiceReady
+          ? 0.08
+          : textReady
+            ? 0.055
+            : 0.035;
 
+  monitor.formIndicators.text.opacity = textReady ? 0.9 : 0.12;
   monitor.formIndicators.voice.opacity = voiceReady ? 0.9 : 0.12;
   monitor.formIndicators.expression.opacity = expressionReady ? 0.9 : 0.12;
   monitor.formIndicators.pointCloud.opacity = pointProgress >= 1 ? 0.9 : 0.12;
@@ -1438,7 +1482,7 @@ export function SpatialScene({
       const pointCloud = formEvents.pointCloud;
       const speaking = Boolean(
         voice &&
-          current.simulationTime >= voice.captureTime &&
+          current.simulationTime >= voice.sentAt &&
           current.simulationTime < (pointCloud?.sentAt ?? voice.sentAt) + 0.45
       );
       const gesturing = Boolean(

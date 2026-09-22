@@ -21,8 +21,8 @@ interface SystemDesignProps {
 }
 
 const pipeline = [
-  { label: "Capture", detail: "Mic · face · body · room depth", icon: ScanFace },
-  { label: "Encode", detail: "Three synchronized streams", icon: Box },
+  { label: "Capture", detail: "Text · face · body · room depth", icon: ScanFace },
+  { label: "Encode", detail: "Four progressive streams", icon: Box },
   { label: "Transport", detail: "Deep-space optical link", icon: RadioTower },
   { label: "Reconstruct", detail: "Audio · rig · body + scene", icon: Move3d },
   { label: "VR render", detail: "World-locked at human scale", icon: Glasses },
@@ -65,8 +65,9 @@ export function SystemDesign({ settings, onChange }: SystemDesignProps) {
         </div>
         <p>
           VR presence increases as cues become spatially coherent. The system
-          sends the smallest human cue first, adds social behavior, then rebuilds
-          the person and surrounding room before opening the receiver's reply turn.
+          sends text first, converts the same message into voice, adds social
+          motion, then rebuilds the person and surrounding room before opening
+          the receiver's reply turn.
         </p>
       </header>
 
@@ -86,7 +87,7 @@ export function SystemDesign({ settings, onChange }: SystemDesignProps) {
           <div className="section-heading">
             <div>
               <p className="eyebrow">progressive fidelity</p>
-              <h3 id="delivery-title">Three presence forms</h3>
+              <h3 id="delivery-title">Automatic presence sequence</h3>
             </div>
             <span>{formatSeconds(propagation)} physical floor</span>
           </div>
@@ -120,7 +121,7 @@ export function SystemDesign({ settings, onChange }: SystemDesignProps) {
 
           <div className="system-equation">
             <span>turn protocol</span>
-            <strong>voice → expression, motion & intent → point cloud → receiver reply</strong>
+            <strong>text → generated voice → expression, motion & intent → point cloud → reply</strong>
           </div>
         </section>
 

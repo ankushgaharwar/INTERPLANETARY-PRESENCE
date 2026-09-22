@@ -77,12 +77,12 @@ export function PresenceComposer({
       : !localTurn
         ? `Waiting for ${participantNames[nextSender]}`
         : !lastSent
-          ? `${participantNames[nextSender]}'s next turn · voice leads`
+          ? `${participantNames[nextSender]}'s next turn · text leads`
           : activeSend
             ? `${participantNames[activeSend.sender]} sending ${PRESENCE_BY_ID[activeSend.presenceForm].shortLabel}`
             : complete
               ? `Full presence received · ${participantNames[nextSender]} can reply`
-              : `Waiting for ${participantNames[lastSent.recipient]} to receive all three forms`;
+              : `Waiting for ${participantNames[lastSent.recipient]} to receive all four stages`;
   const turnSummary = !connectionReady
     ? "Connecting"
     : !peerConnected

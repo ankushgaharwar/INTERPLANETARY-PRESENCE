@@ -17,6 +17,7 @@
   --line-strong: rgba(235, 237, 240, 0.28);
   --text: #f4f3ef;
   --muted: #9fa5ad;
+  --message: #b9c3d1;
   --voice: #8fdcff;
   --expression: #ffd36a;
   --point: #ef8fc5;
@@ -134,14 +135,13 @@ svg {
   font-weight: 650;
 }
 
-.playback-controls {
+.experience-controls {
   display: flex;
-  gap: 1rem;
+  gap: 0.45rem;
   align-items: center;
 }
 
-.view-tabs,
-.transport-controls {
+.view-tabs {
   display: flex;
   align-items: center;
 }
@@ -168,11 +168,6 @@ svg {
   color: #141518;
 }
 
-.transport-controls {
-  position: relative;
-  gap: 0.35rem;
-}
-
 .icon-button {
   display: inline-flex;
   width: 36px;
@@ -192,96 +187,6 @@ svg {
 .icon-button.is-active {
   border-color: var(--line-strong);
   background: rgba(255, 255, 255, 0.07);
-}
-
-.primary-control {
-  border-color: #ede9dd;
-  background: #ede9dd;
-  color: #141518;
-}
-
-.primary-control:hover {
-  background: #ffffff;
-  color: #141518;
-}
-
-.playback-menu {
-  position: relative;
-}
-
-.playback-menu summary {
-  list-style: none;
-}
-
-.playback-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.playback-menu[open] summary {
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.playback-menu-panel {
-  position: absolute;
-  top: calc(100% + 0.55rem);
-  right: 0;
-  z-index: 90;
-  display: grid;
-  width: 220px;
-  gap: 0.35rem;
-  padding: 0.45rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: rgba(18, 20, 24, 0.98);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.44);
-}
-
-.playback-menu-panel > button,
-.speed-control,
-.motion-toggle {
-  display: grid;
-  min-height: 38px;
-  grid-template-columns: 1.3rem minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.45rem 0.55rem;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.74rem;
-  text-align: left;
-}
-
-.playback-menu-panel > button:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
-}
-
-.playback-menu-panel svg {
-  width: 15px;
-  height: 15px;
-}
-
-.speed-control select {
-  height: 30px;
-  padding: 0 0.35rem;
-  border: 1px solid var(--line);
-  background: var(--surface-strong);
-  color: var(--text);
-  font-size: 0.72rem;
-}
-
-.speed-control option {
-  background: var(--surface);
-}
-
-.motion-toggle input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--success);
 }
 
 .experience-view,
@@ -445,6 +350,12 @@ svg {
   font-weight: 520;
 }
 
+.live-transcript p.is-pending {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
 .presence-rail {
   position: absolute;
   right: 0;
@@ -452,7 +363,7 @@ svg {
   left: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: 0.75fr 1.4fr 0.85fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: 104px;
   border-top: 1px solid var(--line);
   background: rgba(9, 10, 12, 0.88);
@@ -478,7 +389,6 @@ svg {
   border-right: 0;
 }
 
-.presence-step:hover,
 .presence-step.is-selected {
   background: rgba(255, 255, 255, 0.05);
 }
@@ -494,14 +404,18 @@ svg {
 }
 
 .presence-step:nth-child(1) {
-  color: var(--voice);
+  color: var(--message);
 }
 
 .presence-step:nth-child(2) {
-  color: var(--expression);
+  color: var(--voice);
 }
 
 .presence-step:nth-child(3) {
+  color: var(--expression);
+}
+
+.presence-step:nth-child(4) {
   color: var(--point);
 }
 
@@ -1221,7 +1135,7 @@ svg {
 
 .composer-sequence {
   display: grid;
-  grid-template-columns: 0.7fr 1.45fr 0.85fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   margin: 0.5rem 0 0;
   padding: 0;
@@ -1262,7 +1176,7 @@ svg {
   }
 
   .presence-rail {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: 92px;
   }
 
@@ -1391,7 +1305,7 @@ svg {
     justify-content: center;
   }
 
-  .playback-controls {
+  .experience-controls {
     width: 100%;
     gap: 0.6rem;
     align-items: center;
@@ -1438,7 +1352,7 @@ svg {
 
   .presence-rail {
     bottom: 9.25rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: 82px;
     overflow: hidden;
   }
@@ -1543,7 +1457,7 @@ svg {
   }
 
   .composer-sequence {
-    grid-template-columns: 0.8fr 1.35fr 0.85fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

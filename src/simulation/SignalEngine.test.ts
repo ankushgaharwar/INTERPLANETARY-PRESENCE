@@ -6,6 +6,7 @@ import {
   createReferenceSettings
 } from "./constants";
 import { conversation } from "./conversation";
+import { getStationDistanceMeters } from "../realtime/stations";
 import {
   PRESENCE_SEQUENCE,
   PRESENCE_STAGGER_SECONDS,
@@ -37,7 +38,7 @@ describe("SignalEngine scientific calculations", () => {
     );
   });
 
-  it("launches voice, expression and point cloud in progressive order", () => {
+  it("launches text, voice, expression and point cloud in progressive order", () => {
     const events = buildTransmissionEvents(
       [conversation[0]],
       createReferenceSettings()
@@ -47,6 +48,7 @@ describe("SignalEngine scientific calculations", () => {
     expect(events[0].sentAt).toBe(0);
     expect(events[1].sentAt).toBe(PRESENCE_STAGGER_SECONDS);
     expect(events[2].sentAt).toBe(PRESENCE_STAGGER_SECONDS * 2);
+    expect(events[3].sentAt).toBe(PRESENCE_STAGGER_SECONDS * 3);
   });
 
   it("opens the reply only after the previous point cloud is ready", () => {
@@ -70,19 +72,51 @@ describe("SignalEngine scientific calculations", () => {
     expect(daughterTurn.every((event) => event.sentAt >= fatherReadyAt)).toBe(true);
   });
 
-  it("matches the default ready times for the three presence forms", () => {
+  it("delivers text before audio, motion and point cloud", () => {
     const events = buildTransmissionEvents(
       [conversation[0]],
       createReferenceSettings()
     );
+    const text = events.find((event) => event.presenceForm === "text");
     const voice = events.find((event) => event.presenceForm === "voice");
     const expression = events.find((event) => event.presenceForm === "expression");
     const pointCloud = events.find((event) => event.presenceForm === "pointCloud");
 
-    expect(voice?.renderReadyAt).toBeCloseTo(1.283, 3);
-    expect(expression?.renderReadyAt).toBeCloseTo(2.177, 3);
-    expect(pointCloud?.networkArrivalTime).toBeCloseTo(5.803, 3);
-    expect(pointCloud?.renderReadyAt).toBeCloseTo(7.003, 3);
+    expect(text?.renderReadyAt).toBeCloseTo(1.282, 3);
+    expect(voice?.renderReadyAt).toBeCloseTo(2.033, 3);
+    expect(expression?.renderReadyAt).toBeCloseTo(2.927, 3);
+    expect(pointCloud?.networkArrivalTime).toBeCloseTo(6.553, 3);
+    expect(pointCloud?.renderReadyAt).toBeCloseTo(7.753, 3);
+    expect(text?.payloadBits).toBeLessThan(2_240);
+  });
+
+  it("uses a much shorter Earth-Space Station delay than Earth-Moon", () => {
+    const moonSettings = createReferenceSettings();
+    moonSettings.earthMoonDistanceMeters = getStationDistanceMeters(
+      "earth",
+      "moon"
+    );
+    const stationSettings = createReferenceSettings();
+    stationSettings.earthMoonDistanceMeters = getStationDistanceMeters(
+      "earth",
+      "spaceStation"
+    );
+
+    const moonEvents = buildTransmissionEvents([conversation[0]], moonSettings);
+    const stationEvents = buildTransmissionEvents(
+      [conversation[0]],
+      stationSettings
+    );
+    const moonText = moonEvents.find((event) => event.presenceForm === "text");
+    const stationText = stationEvents.find(
+      (event) => event.presenceForm === "text"
+    );
+
+    expect(stationText?.propagationTime).toBeCloseTo(0.001361, 6);
+    expect(moonText?.propagationTime).toBeCloseTo(1.28222, 5);
+    expect(stationText?.renderReadyAt).toBeLessThan(
+      moonText?.renderReadyAt ?? 0
+    );
   });
 
   it("keeps the point cloud in reconstruction before it becomes visible", () => {

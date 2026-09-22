@@ -1,6 +1,9 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PlaybackControls, type AppMode } from "./components/PlaybackControls";
+import {
+  ExperienceControls,
+  type AppMode
+} from "./components/ExperienceControls";
 import {
   PresenceComposer,
   type SentPresenceReceipt
@@ -15,10 +18,7 @@ import type { RoomPeer, RoomSession, StationId } from "./realtime/types";
 import { usePresenceRoom } from "./realtime/usePresenceRoom";
 import { createReferenceSettings } from "./simulation/constants";
 import { formatClock, formatSeconds } from "./simulation/format";
-import {
-  buildTransmissionEvents,
-  getNextEventTime
-} from "./simulation/SignalEngine";
+import { buildTransmissionEvents } from "./simulation/SignalEngine";
 import { SimulationClock } from "./simulation/SimulationClock";
 import type {
   ConversationMessage,
@@ -46,6 +46,7 @@ const getTurnStage = (
   recipient: Participant,
   participantNames: Record<Participant, string>
 ) => {
+  const text = focusEvents.find((event) => event.presenceForm === "text");
   const voice = focusEvents.find((event) => event.presenceForm === "voice");
   const expression = focusEvents.find(
     (event) => event.presenceForm === "expression"
@@ -54,8 +55,11 @@ const getTurnStage = (
     (event) => event.presenceForm === "pointCloud"
   );
 
+  if (text && simulationTime < text.renderReadyAt) {
+    return `Text traveling from ${participantNames[sender]} to ${participantNames[recipient]}`;
+  }
   if (voice && simulationTime < voice.renderReadyAt) {
-    return `${participantNames[sender]} speaking · voice traveling to ${participantNames[recipient]}`;
+    return "Text received · generating the same message as voice";
   }
   if (expression && simulationTime < expression.renderReadyAt) {
     return "Voice received · expression, motion and intent next";
@@ -151,12 +155,8 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
   const [mode, setMode] = useState<AppMode>("experience");
   const [simulationTime, setSimulationTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
-  const [speed, setSpeed] = useState(1);
   const [muted, setMuted] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
-  const [selectedForm, setSelectedForm] =
-    useState<PresenceFormId>("voice");
+  const [reducedMotion] = useState(prefersReducedMotion);
 
   const focusEvent = useMemo(
     () =>
@@ -174,6 +174,13 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
   const focusEvents = useMemo(
     () => events.filter((event) => event.messageId === focusMessage.id),
     [events, focusMessage.id]
+  );
+  const selectedForm = useMemo<PresenceFormId>(
+    () =>
+      [...focusEvents]
+        .reverse()
+        .find((event) => simulationTime >= event.sentAt)?.presenceForm ?? "text",
+    [focusEvents, simulationTime]
   );
   const lastMessage = liveMessages.at(-1);
   const lastSent: SentPresenceReceipt | null = lastMessage
@@ -197,6 +204,19 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
   const propagationTime =
     activeSettings.earthMoonDistanceMeters /
     activeSettings.speedOfLightMetersPerSecond;
+  const textEvent = focusEvents.find((event) => event.presenceForm === "text");
+  const pointCloudEvent = focusEvents.find(
+    (event) => event.presenceForm === "pointCloud"
+  );
+  const textDeliveryTime = textEvent
+    ? textEvent.renderReadyAt - textEvent.captureTime
+    : propagationTime;
+  const fullPresenceTime = pointCloudEvent
+    ? pointCloudEvent.renderReadyAt - pointCloudEvent.captureTime
+    : propagationTime;
+  const textReceived = Boolean(
+    textEvent && simulationTime >= textEvent.renderReadyAt
+  );
   const peerConnected = room.peers.some(
     (peer) => peer.clientId !== session.clientId
   );
@@ -263,12 +283,9 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
       clockRef.current.resume(now);
     }
 
-    clockRef.current.setSpeed(speed, now);
-    setHasStarted(true);
     setIsRunning(true);
     setMode("experience");
-    setSelectedForm("voice");
-  }, [events, room.messages, speed]);
+  }, [events, room.messages]);
 
   useEffect(() => {
     if (!isRunning || !lastMessage) {
@@ -294,8 +311,9 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
     const arrivedVoice = events.filter(
       (event) =>
         event.presenceForm === "voice" &&
-        event.networkArrivalTime > previousTime &&
-        event.networkArrivalTime <= simulationTime &&
+        event.renderReadyAt > previousTime &&
+        event.renderReadyAt <= simulationTime &&
+        event.recipient === session.role &&
         !spokenEventsRef.current.has(event.id)
     );
 
@@ -311,62 +329,7 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
     });
 
     previousTimeRef.current = simulationTime;
-  }, [events, muted, simulationTime]);
-
-  const startSimulation = () => {
-    window.speechSynthesis?.cancel();
-    const now = performance.now();
-    clockRef.current.reset(now);
-    clockRef.current.start(now);
-    clockRef.current.setSpeed(speed, now);
-    previousTimeRef.current = 0;
-    spokenEventsRef.current.clear();
-    setSimulationTime(0);
-    setHasStarted(true);
-    setIsRunning(true);
-    setSelectedForm("voice");
-  };
-
-  const pauseSimulation = () => {
-    const pausedAt = clockRef.current.pause(performance.now());
-    window.speechSynthesis?.pause();
-    setSimulationTime(pausedAt);
-    setIsRunning(false);
-  };
-
-  const resumeSimulation = () => {
-    window.speechSynthesis?.resume();
-    clockRef.current.resume(performance.now());
-    setHasStarted(true);
-    setIsRunning(true);
-  };
-
-  const resetSimulation = () => {
-    window.speechSynthesis?.cancel();
-    clockRef.current.reset(performance.now());
-    previousTimeRef.current = 0;
-    spokenEventsRef.current.clear();
-    setSimulationTime(0);
-    setIsRunning(false);
-    setHasStarted(false);
-    setSpeed(1);
-    setSelectedForm("voice");
-  };
-
-  const stepSimulation = () => {
-    window.speechSynthesis?.cancel();
-    const target = getNextEventTime(events, simulationTime);
-    clockRef.current.pause(performance.now());
-    clockRef.current.stepTo(target, performance.now());
-    setSimulationTime(target);
-    setHasStarted(true);
-    setIsRunning(false);
-  };
-
-  const changeSpeed = (nextSpeed: number) => {
-    clockRef.current.setSpeed(nextSpeed, performance.now());
-    setSpeed(nextSpeed);
-  };
+  }, [events, muted, session.role, simulationTime]);
 
   return (
     <main className={`app-shell ${reducedMotion ? "reduce-motion" : ""}`}>
@@ -375,22 +338,11 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
           <p>Interplanetary Presence</p>
           <h1>Earth · Moon · Space Station</h1>
         </div>
-        <PlaybackControls
+        <ExperienceControls
           mode={mode}
-          isRunning={isRunning}
-          hasStarted={hasStarted}
-          speed={speed}
           muted={muted}
-          reducedMotion={reducedMotion}
           onModeChange={setMode}
-          onStart={startSimulation}
-          onPause={pauseSimulation}
-          onResume={resumeSimulation}
-          onReset={resetSimulation}
-          onStep={stepSimulation}
-          onSpeedChange={changeSpeed}
           onMutedChange={setMuted}
-          onReducedMotionChange={setReducedMotion}
         />
       </header>
 
@@ -426,7 +378,8 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
               </div>
               <div className="stage-metrics">
                 <span>{(distanceMeters / 1000).toLocaleString()} km</span>
-                <span>{formatSeconds(propagationTime)} one-way</span>
+                <span>Text {formatSeconds(textDeliveryTime)}</span>
+                <span>Full {formatSeconds(fullPresenceTime)}</span>
                 <strong>{formatClock(simulationTime)}</strong>
               </div>
             </div>
@@ -470,14 +423,17 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
 
             <div className="live-transcript" aria-live="polite">
               <span>{turnStage}</span>
-              <p>“{focusMessage.text}”</p>
+              <p className={hasLiveMessages && !textReceived ? "is-pending" : ""}>
+                {hasLiveMessages && !textReceived
+                  ? "Message crossing the link..."
+                  : `“${focusMessage.text}”`}
+              </p>
             </div>
 
             <PresenceRail
               events={focusEvents}
               simulationTime={simulationTime}
               selectedForm={selectedForm}
-              onSelect={setSelectedForm}
             />
           </div>
         </section>

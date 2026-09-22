@@ -1,6 +1,6 @@
 export type Participant = "daughter" | "father";
 
-export type PresenceFormId = "voice" | "expression" | "pointCloud";
+export type PresenceFormId = "text" | "voice" | "expression" | "pointCloud";
 
 export type TransmissionState =
   | "queued"

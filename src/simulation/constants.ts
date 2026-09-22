@@ -6,6 +6,7 @@ export const DEFAULT_LINK_RATE_MBPS = 331;
 export const DEFAULT_POINT_CLOUD_RECONSTRUCTION_SECONDS = 1.2;
 
 export const DEFAULT_PAYLOAD_BITS: Record<PresenceFormId, number> = {
+  text: 2_240,
   voice: 320_000,
   expression: 48_000_000,
   pointCloud: 1_000_000_000
