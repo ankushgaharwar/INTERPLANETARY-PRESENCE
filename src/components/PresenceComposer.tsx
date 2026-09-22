@@ -21,7 +21,6 @@ interface PresenceComposerProps {
   localParticipant: Participant;
   participantNames: Record<Participant, string>;
   connectionReady: boolean;
-  connectionStatusText: string;
   peerConnected: boolean;
   onSend: (text: string) => Promise<boolean>;
 }
@@ -37,7 +36,6 @@ export function PresenceComposer({
   localParticipant,
   participantNames,
   connectionReady,
-  connectionStatusText,
   peerConnected,
   onSend
 }: PresenceComposerProps) {
@@ -73,7 +71,7 @@ export function PresenceComposer({
   );
   const recipient = getRecipient(nextSender);
   const status = !connectionReady
-    ? connectionStatusText
+    ? "Connecting to the shared room"
     : !peerConnected
       ? "Waiting for the second person to join"
       : !localTurn

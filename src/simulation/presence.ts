@@ -22,16 +22,16 @@ export const PRESENCE_FORMS: PresenceFormDefinition[] = [
   },
   {
     id: "expression",
-    label: "Live video · expression, motion & intent",
-    shortLabel: "Live video",
-    principle: "See gaze, affect, gesture and intent",
-    assumption: "Encrypted camera video with embodied visual cues",
+    label: "Facial expression, motion & intent",
+    shortLabel: "Expression",
+    principle: "Read gaze, affect, gesture and intent",
+    assumption: "Face blendshapes, skeletal motion and intent metadata",
     color: "#ffd36a",
     defaultPayloadBits: DEFAULT_PAYLOAD_BITS.expression
   },
   {
     id: "pointCloud",
-    label: "Simulated point cloud",
+    label: "Point cloud",
     shortLabel: "Point cloud",
     principle: "Rebuild body scale, furniture and surrounding space",
     assumption: "10 seconds of compressed body and room-depth capture",

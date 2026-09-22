@@ -25,28 +25,6 @@ export interface RoomMessage {
   sentAt: number;
 }
 
-export type MediaSignalKind =
-  | "media-ready"
-  | "offer"
-  | "answer"
-  | "candidate";
-
-export interface MediaSignal {
-  id: string;
-  roomCode: string;
-  senderId: string;
-  targetId?: string;
-  kind: MediaSignalKind;
-  sentAt: number;
-  description?: RTCSessionDescriptionInit;
-  candidate?: RTCIceCandidateInit;
-}
-
-export type OutgoingMediaSignal = Omit<
-  MediaSignal,
-  "id" | "roomCode" | "senderId" | "sentAt"
->;
-
 export type RoomConnectionStatus =
   | "connecting"
   | "connected"

@@ -21,30 +21,16 @@ const cleanRoomCode = (value: string) =>
   value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
 
 export function RoomLobby({ onEnter }: RoomLobbyProps) {
-  const invitation = useMemo(() => {
+  const initialRoomCode = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    const roomCode = cleanRoomCode(params.get("room") ?? "");
-    const station = params.get("station");
-    return {
-      roomCode,
-      reservedStation:
-        roomCode && STATIONS.some((candidate) => candidate.id === station)
-          ? (station as StationId)
-          : null
-    };
+    return cleanRoomCode(params.get("room") ?? "");
   }, []);
   const [displayName, setDisplayName] = useState(
     () => window.localStorage.getItem("presence-display-name") ?? ""
   );
-  const [station, setStation] = useState<StationId>(
-    () =>
-      STATIONS.find((candidate) => candidate.id !== invitation.reservedStation)
-        ?.id ?? "earth"
-  );
-  const [roomCode, setRoomCode] = useState(invitation.roomCode);
+  const [station, setStation] = useState<StationId>("earth");
+  const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [error, setError] = useState("");
-  const reservedStation =
-    roomCode === invitation.roomCode ? invitation.reservedStation : null;
 
   const enterRoom = (role: RoomSession["role"], code: string) => {
     const name = displayName.trim();
@@ -54,10 +40,6 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
     }
     if (!code) {
       setError("Enter a room code to join.");
-      return;
-    }
-    if (role === "daughter" && station === reservedStation) {
-      setError("That station is already occupied. Choose another location.");
       return;
     }
 
@@ -99,17 +81,12 @@ export function RoomLobby({ onEnter }: RoomLobbyProps) {
               type="button"
               role="radio"
               aria-checked={station === id}
-              disabled={reservedStation === id}
               onClick={() => setStation(id)}
             >
               <Icon aria-hidden="true" />
               <span>
                 <strong>{label}</strong>
-                <small>
-                  {reservedStation === id
-                    ? "Occupied by room creator"
-                    : detail}
-                </small>
+                <small>{detail}</small>
               </span>
             </button>
           ))}
