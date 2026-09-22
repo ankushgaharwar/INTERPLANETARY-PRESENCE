@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PresenceComposer } from "./PresenceComposer";
 
@@ -18,22 +18,19 @@ const defaultProps = {
 };
 
 describe("PresenceComposer", () => {
-  it("keeps the message field editable while send is waiting for a peer", () => {
-    const { rerender } = render(<PresenceComposer {...defaultProps} />);
+  it("allows the first message to run as a solo preview", async () => {
+    render(<PresenceComposer {...defaultProps} />);
     const input = screen.getByRole("textbox", { name: "Message" });
     const send = screen.getByRole("button", { name: "Send message" });
 
     expect(input).toBeEnabled();
     fireEvent.change(input, { target: { value: "Message ready for orbit" } });
     expect(input).toHaveValue("Message ready for orbit");
-    expect(send).toBeDisabled();
-    expect(send).toHaveAttribute(
-      "title",
-      "Send unlocks when the second person joins"
-    );
-
-    rerender(<PresenceComposer {...defaultProps} peerConnected />);
-    expect(input).toHaveValue("Message ready for orbit");
     expect(send).toBeEnabled();
+    expect(send).toHaveAttribute("title", "Send message");
+    expect(screen.getByText("Ready to send")).toBeInTheDocument();
+    fireEvent.click(send);
+    expect(defaultProps.onSend).toHaveBeenCalledWith("Message ready for orbit");
+    await waitFor(() => expect(input).toHaveValue(""));
   });
 });

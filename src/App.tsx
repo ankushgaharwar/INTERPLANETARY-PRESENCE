@@ -229,7 +229,7 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
         recipient,
         participantNames
       )
-    : "Waiting for the first presence transmission";
+    : "Ready for the first presence transmission";
 
   useEffect(() => {
     if (!isRunning) {
@@ -426,7 +426,9 @@ function LiveSession({ session, onLeave }: LiveSessionProps) {
               <p className={hasLiveMessages && !textReceived ? "is-pending" : ""}>
                 {hasLiveMessages && !textReceived
                   ? "Message crossing the link..."
-                  : `“${focusMessage.text}”`}
+                  : hasLiveMessages
+                    ? `“${focusMessage.text}”`
+                    : "Type a message below to begin."}
               </p>
             </div>
 
