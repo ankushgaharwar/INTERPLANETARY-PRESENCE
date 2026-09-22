@@ -25,6 +25,9 @@ const isOpenLobby = (value: unknown): value is OpenLobby => {
     (lobby.hostStation === "earth" ||
       lobby.hostStation === "moon" ||
       lobby.hostStation === "spaceStation") &&
+    (lobby.hostAvatar === "atlas" ||
+      lobby.hostAvatar === "nova" ||
+      lobby.hostAvatar === "sol") &&
     typeof lobby.advertisedAt === "number"
   );
 };
@@ -69,6 +72,7 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
             hostClientId: advertisedSession.clientId,
             hostName: advertisedSession.displayName,
             hostStation: advertisedSession.station,
+            hostAvatar: advertisedSession.avatar,
             advertisedAt: Date.now()
           }
         : null;
@@ -218,6 +222,7 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
   }, [
     advertisedSession?.clientId,
     advertisedSession?.displayName,
+    advertisedSession?.avatar,
     advertisedSession?.role,
     advertisedSession?.roomCode,
     advertisedSession?.station

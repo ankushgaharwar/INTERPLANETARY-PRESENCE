@@ -1,9 +1,11 @@
 import { ArrowRight, Plus, Radio, UsersRound } from "lucide-react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
+import { AVATAR_BY_ID, AVATARS } from "../realtime/avatars";
 import { realtimeConfig } from "../realtime/config";
 import { STATION_BY_ID, STATIONS } from "../realtime/stations";
 import type {
   OpenLobby,
+  AvatarId,
   RoomConnectionStatus,
   RoomSession,
   StationId
@@ -24,6 +26,17 @@ const createRoomCode = () => {
     .join("");
 };
 
+const colorHex = (color: number) => `#${color.toString(16).padStart(6, "0")}`;
+
+const avatarStyle = (avatarId: AvatarId) => {
+  const avatar = AVATAR_BY_ID[avatarId];
+  return {
+    "--avatar-skin": colorHex(avatar.skin),
+    "--avatar-hair": colorHex(avatar.hair),
+    "--avatar-accent": colorHex(avatar.accent)
+  } as CSSProperties;
+};
+
 export function RoomLobby({
   lobbies,
   directoryStatus,
@@ -33,6 +46,7 @@ export function RoomLobby({
     () => window.localStorage.getItem("presence-display-name") ?? ""
   );
   const [station, setStation] = useState<StationId>("earth");
+  const [avatar, setAvatar] = useState<AvatarId>("atlas");
   const [error, setError] = useState("");
 
   const enterRoom = (role: RoomSession["role"], roomCode: string) => {
@@ -49,6 +63,7 @@ export function RoomLobby({
       clientId: crypto.randomUUID(),
       displayName: name,
       station,
+      avatar,
       role
     });
   };
@@ -127,6 +142,40 @@ export function RoomLobby({
           ))}
         </div>
 
+        <div className="entry-section-heading">
+          <span>Your avatar</span>
+          <strong>{AVATAR_BY_ID[avatar].label}</strong>
+        </div>
+
+        <div className="avatar-picker" role="radiogroup" aria-label="Avatar">
+          {AVATARS.map((option) => (
+            <button
+              key={option.id}
+              className={avatar === option.id ? "is-selected" : ""}
+              type="button"
+              role="radio"
+              aria-checked={avatar === option.id}
+              aria-label={`${option.label}, ${option.detail}`}
+              onClick={() => {
+                setAvatar(option.id);
+                setError("");
+              }}
+            >
+              <span
+                className="avatar-preview"
+                style={avatarStyle(option.id)}
+                aria-hidden="true"
+              >
+                <i />
+              </span>
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.detail}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+
         <div className="create-lobby-row">
           <div>
             <strong>Host from {STATION_BY_ID[station].label}</strong>
@@ -174,7 +223,16 @@ export function RoomLobby({
                       <StationIcon />
                     </span>
                     <div className="open-lobby-copy">
-                      <strong>{lobby.hostName}</strong>
+                      <strong className="lobby-host-name">
+                        <span
+                          className="avatar-preview is-small"
+                          style={avatarStyle(lobby.hostAvatar)}
+                          aria-hidden="true"
+                        >
+                          <i />
+                        </span>
+                        {lobby.hostName}
+                      </strong>
                       <span>
                         Hosting from {stationInfo.label} · {stationInfo.detail}
                       </span>

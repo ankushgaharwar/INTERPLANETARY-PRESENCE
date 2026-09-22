@@ -27,6 +27,7 @@ describe("RoomLobby", () => {
       target: { value: "Alex" }
     });
     fireEvent.click(screen.getByRole("radio", { name: /Moon/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Nova/ }));
     fireEvent.click(screen.getByRole("button", { name: "Create open lobby" }));
 
     expect(onEnter).toHaveBeenCalledWith(
@@ -34,6 +35,7 @@ describe("RoomLobby", () => {
         displayName: "Alex",
         role: "father",
         station: "moon",
+        avatar: "nova",
         roomCode: expect.stringMatching(/^[A-Z0-9]{8}$/)
       })
     );
@@ -49,6 +51,7 @@ describe("RoomLobby", () => {
             hostClientId: "host-1",
             hostName: "Alex",
             hostStation: "earth",
+            hostAvatar: "atlas",
             advertisedAt: Date.now()
           }
         ]}
@@ -65,6 +68,7 @@ describe("RoomLobby", () => {
     fireEvent.change(screen.getByLabelText("Your name"), {
       target: { value: "Maya" }
     });
+    fireEvent.click(screen.getByRole("radio", { name: /Sol/ }));
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
     expect(onEnter).toHaveBeenCalledWith(
@@ -72,6 +76,7 @@ describe("RoomLobby", () => {
         displayName: "Maya",
         role: "daughter",
         station: "earth",
+        avatar: "sol",
         roomCode: "MOON42"
       })
     );

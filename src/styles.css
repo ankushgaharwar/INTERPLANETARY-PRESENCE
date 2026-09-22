@@ -817,6 +817,106 @@ svg {
   font-size: 0.7rem;
 }
 
+.avatar-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.6rem;
+}
+
+.avatar-picker button {
+  display: grid;
+  min-height: 76px;
+  grid-template-columns: 2.6rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border-color: var(--line);
+  background: #0d1014;
+  text-align: left;
+}
+
+.avatar-picker button:hover {
+  border-color: var(--line-strong);
+  background: #13171c;
+}
+
+.avatar-picker button.is-selected {
+  border-color: var(--expression);
+  background: #1d1b18;
+}
+
+.avatar-picker button > span:last-child {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.avatar-picker strong {
+  font-size: 0.86rem;
+  font-weight: 620;
+}
+
+.avatar-picker small {
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.avatar-preview {
+  position: relative;
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  align-items: end;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--avatar-accent) 65%, #ffffff 10%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--avatar-accent) 18%, #0b0d10);
+}
+
+.avatar-preview::before {
+  position: absolute;
+  top: 0.42rem;
+  width: 1.18rem;
+  height: 1.32rem;
+  border-radius: 48% 48% 44% 44%;
+  background: var(--avatar-skin);
+  box-shadow: inset 0 0.34rem 0 var(--avatar-hair);
+  content: "";
+}
+
+.avatar-preview i {
+  width: 2rem;
+  height: 0.9rem;
+  border-radius: 50% 50% 0 0;
+  background: var(--avatar-accent);
+}
+
+.avatar-preview.is-small {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.avatar-preview.is-small::before {
+  top: 0.22rem;
+  width: 0.72rem;
+  height: 0.78rem;
+  box-shadow: inset 0 0.2rem 0 var(--avatar-hair);
+}
+
+.avatar-preview.is-small i {
+  width: 1.1rem;
+  height: 0.5rem;
+}
+
+.lobby-host-name {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .create-lobby-row {
   display: flex;
   gap: 1rem;
@@ -1312,6 +1412,23 @@ svg {
 
   .station-picker strong {
     font-size: 0.78rem;
+  }
+
+  .avatar-picker {
+    gap: 0.4rem;
+  }
+
+  .avatar-picker button {
+    min-height: 76px;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    justify-items: center;
+    padding: 0.55rem 0.25rem;
+    text-align: center;
+  }
+
+  .avatar-picker small {
+    display: none;
   }
 
   .create-lobby-row {

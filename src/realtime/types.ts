@@ -1,12 +1,14 @@
 import type { Participant } from "../simulation/types";
 
 export type StationId = "earth" | "moon" | "spaceStation";
+export type AvatarId = "atlas" | "nova" | "sol";
 
 export interface RoomSession {
   roomCode: string;
   clientId: string;
   displayName: string;
   station: StationId;
+  avatar: AvatarId;
   role: Participant;
 }
 
@@ -19,6 +21,7 @@ export interface OpenLobby {
   hostClientId: string;
   hostName: string;
   hostStation: StationId;
+  hostAvatar: AvatarId;
   advertisedAt: number;
 }
 

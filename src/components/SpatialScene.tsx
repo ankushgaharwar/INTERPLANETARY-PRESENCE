@@ -3,7 +3,8 @@ import * as THREE from "three";
 import { clamp } from "../simulation/format";
 import { PRESENCE_SEQUENCE } from "../simulation/presence";
 import { getSnapshot } from "../simulation/SignalEngine";
-import type { StationId } from "../realtime/types";
+import { AVATAR_BY_ID } from "../realtime/avatars";
+import type { AvatarId, StationId } from "../realtime/types";
 import type {
   Participant,
   PresenceFormId,
@@ -16,8 +17,10 @@ interface SpatialSceneProps {
   simulationTime: number;
   selectedForm: PresenceFormId;
   reducedMotion: boolean;
-  fatherStation: StationId;
-  daughterStation: StationId;
+  fatherStation: StationId | null;
+  daughterStation: StationId | null;
+  fatherAvatar: AvatarId | null;
+  daughterAvatar: AvatarId | null;
 }
 
 interface AvatarRig {
@@ -203,7 +206,9 @@ const createEnvironmentPointGeometry = (station: StationId) => {
 
 const createAvatar = (
   participant: Participant,
-  materials: CharacterMaterials
+  materials: CharacterMaterials,
+  suited: boolean,
+  avatarId: AvatarId
 ): AvatarRig => {
   const group = new THREE.Group();
   const head = new THREE.Mesh(
@@ -289,7 +294,7 @@ const createAvatar = (
   hairCap.position.y = 1.85;
   group.add(hairCap);
 
-  if (participant === "daughter") {
+  if (avatarId === "nova") {
     const bun = new THREE.Mesh(
       new THREE.SphereGeometry(0.105, 18, 12),
       materials.hair
@@ -305,6 +310,16 @@ const createAvatar = (
       ear.position.set(side * 0.245, 1.83, 0);
       group.add(ear);
     });
+
+    if (avatarId === "sol") {
+      const sweptHair = new THREE.Mesh(
+        new THREE.BoxGeometry(0.17, 0.06, 0.08),
+        materials.hair
+      );
+      sweptHair.position.set(-0.13, 2.02, 0.12);
+      sweptHair.rotation.z = -0.36;
+      group.add(sweptHair);
+    }
   }
 
   const collar = new THREE.Mesh(
@@ -333,7 +348,7 @@ const createAvatar = (
     );
     const forearm = new THREE.Mesh(
       new THREE.CylinderGeometry(0.07, 0.055, 0.34, 14),
-      participant === "daughter" ? materials.top : materials.skin
+      suited ? materials.top : materials.skin
     );
     forearm.position.y = -0.17;
     const hand = new THREE.Mesh(
@@ -364,7 +379,7 @@ const createAvatar = (
     shoe.position.set(side * 0.15, -0.1, 0.07);
     group.add(upperLeg, lowerLeg, shoe);
 
-    if (participant === "daughter") {
+    if (suited) {
       const kneeBand = new THREE.Mesh(
         new THREE.CylinderGeometry(0.101, 0.101, 0.055, 16),
         materials.detail
@@ -374,7 +389,7 @@ const createAvatar = (
     }
   });
 
-  if (participant === "father") {
+  if (!suited) {
     const shirtHem = new THREE.Mesh(
       new THREE.TorusGeometry(0.3, 0.018, 8, 30),
       materials.detail
@@ -421,28 +436,29 @@ const createAvatar = (
 };
 
 const createCharacterMaterials = (
-  participant: Participant
+  avatarId: AvatarId,
+  suited: boolean
 ): CharacterMaterials => {
-  const colors =
-    participant === "father"
-      ? {
-          skin: 0xc98f6b,
-          top: 0x355f58,
-          lower: 0x263344,
-          hair: 0x281d1a,
-          shoe: 0x5a3c2e,
-          detail: 0xe8d8b6,
-          feature: 0x171412
-        }
-      : {
-          skin: 0xb9785d,
-          top: 0xe0e5e6,
-          lower: 0xaebbc2,
-          hair: 0x30201f,
-          shoe: 0x59666e,
-          detail: 0x398baa,
-          feature: 0x171412
-        };
+  const avatar = AVATAR_BY_ID[avatarId];
+  const colors = suited
+    ? {
+        skin: avatar.skin,
+        top: 0xe0e5e6,
+        lower: 0xaebbc2,
+        hair: avatar.hair,
+        shoe: 0x59666e,
+        detail: avatar.accent,
+        feature: 0x171412
+      }
+    : {
+        skin: avatar.skin,
+        top: avatar.accent,
+        lower: 0x263344,
+        hair: avatar.hair,
+        shoe: 0x5a3c2e,
+        detail: 0xe8d8b6,
+        feature: 0x171412
+      };
 
   return {
     skin: new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.72 }),
@@ -453,7 +469,7 @@ const createCharacterMaterials = (
     detail: new THREE.MeshStandardMaterial({
       color: colors.detail,
       roughness: 0.48,
-      metalness: participant === "daughter" ? 0.18 : 0.02
+      metalness: suited ? 0.18 : 0.02
     }),
     feature: new THREE.MeshBasicMaterial({ color: colors.feature })
   };
@@ -979,7 +995,8 @@ const createStationEnvironment = (station: StationId) => {
 const createMonitor = (
   accentColor: number,
   remoteParticipant: Participant,
-  remoteStation: StationId
+  remoteStation: StationId,
+  remoteAvatar: AvatarId
 ): MonitorRig => {
   const group = new THREE.Group();
   const frameMaterial = new THREE.MeshStandardMaterial({
@@ -1058,7 +1075,9 @@ const createMonitor = (
   });
   const expressionRig = createAvatar(
     remoteParticipant,
-    createHologramMaterials(expressionMaterial)
+    createHologramMaterials(expressionMaterial),
+    remoteStation !== "earth",
+    remoteAvatar
   );
   expressionRig.group.position.set(0, 1.0, 0.13);
   expressionRig.group.scale.setScalar(0.4);
@@ -1256,7 +1275,9 @@ export function SpatialScene({
   selectedForm,
   reducedMotion,
   fatherStation,
-  daughterStation
+  daughterStation,
+  fatherAvatar,
+  daughterAvatar
 }: SpatialSceneProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef({
@@ -1300,7 +1321,9 @@ export function SpatialScene({
     renderer.domElement.setAttribute("role", "img");
     renderer.domElement.setAttribute(
       "aria-label",
-      "Two people in selected Earth, Moon or Space Station environments, each beside a monitor receiving a person and their surrounding space"
+      fatherStation && daughterStation
+        ? "Two participants in their selected environments, each beside a presence monitor"
+        : "One participant in their selected environment with the second position waiting to be filled"
     );
     mount.appendChild(renderer.domElement);
 
@@ -1313,17 +1336,38 @@ export function SpatialScene({
     daughterLight.position.set(3.4, 3.8, 3.2);
     scene.add(daughterLight);
 
-    const earthRoom = createStationEnvironment(fatherStation);
-    const moonHabitat = createStationEnvironment(daughterStation);
+    const fatherSceneStation = fatherStation ?? "earth";
+    const daughterSceneStation = daughterStation ?? "moon";
+    const fatherSceneAvatar = fatherAvatar ?? "atlas";
+    const daughterSceneAvatar = daughterAvatar ?? "nova";
+    const earthRoom = createStationEnvironment(fatherSceneStation);
+    const moonHabitat = createStationEnvironment(daughterSceneStation);
+    earthRoom.visible = fatherStation !== null;
+    moonHabitat.visible = daughterStation !== null;
     earthRoom.position.x = -3.25;
     moonHabitat.position.x = 3.25;
     scene.add(earthRoom, moonHabitat);
 
-    const father = createAvatar("father", createCharacterMaterials("father"));
+    const father = createAvatar(
+      "father",
+      createCharacterMaterials(
+        fatherSceneAvatar,
+        fatherSceneStation !== "earth"
+      ),
+      fatherSceneStation !== "earth",
+      fatherSceneAvatar
+    );
     const daughter = createAvatar(
       "daughter",
-      createCharacterMaterials("daughter")
+      createCharacterMaterials(
+        daughterSceneAvatar,
+        daughterSceneStation !== "earth"
+      ),
+      daughterSceneStation !== "earth",
+      daughterSceneAvatar
     );
+    father.group.visible = fatherStation !== null;
+    daughter.group.visible = daughterStation !== null;
     father.group.position.set(-3.25, 0.16, 0);
     daughter.group.position.set(3.25, 0.16, 0);
     scene.add(father.group, daughter.group);
@@ -1331,13 +1375,17 @@ export function SpatialScene({
     const fatherMonitor = createMonitor(
       participantColors.father,
       "daughter",
-      daughterStation
+      daughterSceneStation,
+      daughterSceneAvatar
     );
     const daughterMonitor = createMonitor(
       participantColors.daughter,
       "father",
-      fatherStation
+      fatherSceneStation,
+      fatherSceneAvatar
     );
+    fatherMonitor.group.visible = fatherStation !== null;
+    daughterMonitor.group.visible = daughterStation !== null;
     fatherMonitor.group.position.x = -1.32;
     daughterMonitor.group.position.x = 1.32;
     scene.add(fatherMonitor.group, daughterMonitor.group);
@@ -1360,6 +1408,8 @@ export function SpatialScene({
     };
     const fatherAnchor = createAnchor(participantColors.father);
     const daughterAnchor = createAnchor(participantColors.daughter);
+    fatherAnchor.anchor.visible = fatherStation !== null;
+    daughterAnchor.anchor.visible = daughterStation !== null;
     fatherAnchor.anchor.position.x = -3.25;
     daughterAnchor.anchor.position.x = 3.25;
 
@@ -1553,7 +1603,7 @@ export function SpatialScene({
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [daughterStation, fatherStation]);
+  }, [daughterAvatar, daughterStation, fatherAvatar, fatherStation]);
 
   return <div className="spatial-canvas" ref={mountRef} />;
 }

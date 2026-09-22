@@ -1,6 +1,11 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  prepareSpeechSynthesis,
+  speakPresenceMessage,
+  stopSpeechSynthesis
+} from "./audio/speech";
+import {
   ExperienceControls,
   type AppMode
 } from "./components/ExperienceControls";
@@ -14,7 +19,7 @@ import { RoomLobby } from "./components/RoomLobby";
 import { SpatialScene } from "./components/SpatialScene";
 import { SystemDesign } from "./components/SystemDesign";
 import { getStationDistanceMeters, STATION_BY_ID } from "./realtime/stations";
-import type { RoomPeer, RoomSession, StationId } from "./realtime/types";
+import type { RoomPeer, RoomSession } from "./realtime/types";
 import { useLobbyDirectory } from "./realtime/useLobbyDirectory";
 import { usePresenceRoom } from "./realtime/usePresenceRoom";
 import { createReferenceSettings } from "./simulation/constants";
@@ -88,16 +93,6 @@ const getPeer = (
     ? { ...session, joinedAt: new Date().toISOString() }
     : undefined);
 
-const getFallbackStation = (
-  role: Participant,
-  session: RoomSession
-): StationId => {
-  if (session.role === role) {
-    return session.station;
-  }
-  return role === "father" ? "earth" : "moon";
-};
-
 interface LiveSessionProps {
   session: RoomSession;
   onLeave: () => void;
@@ -115,21 +110,19 @@ function LiveSession({
   );
   const fatherPeer = getPeer(room.peers, "father", session);
   const daughterPeer = getPeer(room.peers, "daughter", session);
-  const fatherStation =
-    fatherPeer?.station ?? getFallbackStation("father", session);
-  const daughterStation =
-    daughterPeer?.station ?? getFallbackStation("daughter", session);
+  const fatherStation = fatherPeer?.station ?? null;
+  const daughterStation = daughterPeer?.station ?? null;
+  const routeReady = fatherStation !== null && daughterStation !== null;
   const participantNames = useMemo<Record<Participant, string>>(
     () => ({
-      father: fatherPeer?.displayName ?? "First participant",
-      daughter: daughterPeer?.displayName ?? "Second participant"
+      father: fatherPeer?.displayName ?? "Open position",
+      daughter: daughterPeer?.displayName ?? "Open position"
     }),
     [daughterPeer?.displayName, fatherPeer?.displayName]
   );
-  const distanceMeters = getStationDistanceMeters(
-    fatherStation,
-    daughterStation
-  );
+  const distanceMeters = routeReady
+    ? getStationDistanceMeters(fatherStation, daughterStation)
+    : 1_000;
   const activeSettings = useMemo(
     () => ({ ...settings, earthMoonDistanceMeters: distanceMeters }),
     [distanceMeters, settings]
@@ -324,23 +317,18 @@ function LiveSession({
         event.presenceForm === "voice" &&
         event.renderReadyAt > previousTime &&
         event.renderReadyAt <= simulationTime &&
-        event.recipient === session.role &&
+        (event.recipient === session.role || !peerConnected) &&
         !spokenEventsRef.current.has(event.id)
     );
 
     arrivedVoice.forEach((event) => {
-      spokenEventsRef.current.add(event.id);
-      if (!muted && "speechSynthesis" in window) {
-        const utterance = new SpeechSynthesisUtterance(event.text);
-        utterance.lang = "en-US";
-        utterance.pitch = event.sender === "daughter" ? 1.08 : 0.9;
-        utterance.rate = 0.95;
-        window.speechSynthesis.speak(utterance);
+      if (muted || speakPresenceMessage(event.text, event.sender)) {
+        spokenEventsRef.current.add(event.id);
       }
     });
 
     previousTimeRef.current = simulationTime;
-  }, [events, muted, session.role, simulationTime]);
+  }, [events, muted, peerConnected, session.role, simulationTime]);
 
   return (
     <main className={`app-shell ${reducedMotion ? "reduce-motion" : ""}`}>
@@ -353,7 +341,12 @@ function LiveSession({
           mode={mode}
           muted={muted}
           onModeChange={setMode}
-          onMutedChange={setMuted}
+          onMutedChange={(nextMuted) => {
+            if (!nextMuted) {
+              prepareSpeechSynthesis();
+            }
+            setMuted(nextMuted);
+          }}
         />
       </header>
 
@@ -387,7 +380,11 @@ function LiveSession({
                 <span>{participantNames[recipient]}</span>
               </div>
               <div className="stage-metrics">
-                <span>{(distanceMeters / 1000).toLocaleString()} km</span>
+                <span>
+                  {routeReady
+                    ? `${(distanceMeters / 1000).toLocaleString()} km`
+                    : "Awaiting participant"}
+                </span>
                 <span>Text {formatSeconds(textDeliveryTime)}</span>
                 <span>Full {formatSeconds(fullPresenceTime)}</span>
                 <strong>{formatClock(simulationTime)}</strong>
@@ -404,30 +401,40 @@ function LiveSession({
               reducedMotion={reducedMotion}
               fatherStation={fatherStation}
               daughterStation={daughterStation}
+              fatherAvatar={fatherPeer?.avatar ?? null}
+              daughterAvatar={daughterPeer?.avatar ?? null}
             />
 
             <div
               className={`participant-label father-label ${focusMessage.sender === "father" ? "is-active" : ""}`}
             >
               <span>
-                {focusMessage.sender === "father"
+                {!fatherPeer
+                  ? "Open position"
+                  : focusMessage.sender === "father"
                   ? "Transmitting"
                   : "Receiving on monitor"}
               </span>
               <strong>
-                {STATION_BY_ID[fatherStation].label} · {participantNames.father}
+                {fatherStation
+                  ? `${STATION_BY_ID[fatherStation].label} · ${participantNames.father}`
+                  : "Waiting for participant"}
               </strong>
             </div>
             <div
               className={`participant-label daughter-label ${focusMessage.sender === "daughter" ? "is-active" : ""}`}
             >
               <span>
-                {focusMessage.sender === "daughter"
+                {!daughterPeer
+                  ? "Open position"
+                  : focusMessage.sender === "daughter"
                   ? "Transmitting"
                   : "Receiving on monitor"}
               </span>
               <strong>
-                {STATION_BY_ID[daughterStation].label} · {participantNames.daughter}
+                {daughterStation
+                  ? `${STATION_BY_ID[daughterStation].label} · ${participantNames.daughter}`
+                  : "Waiting for participant"}
               </strong>
             </div>
 
@@ -476,12 +483,13 @@ function App() {
   const directory = useLobbyDirectory(advertisedSession);
 
   const enterRoom = (nextSession: RoomSession) => {
+    prepareSpeechSynthesis();
     setLobbyAvailable(nextSession.role === "father");
     setSession(nextSession);
   };
 
   const leaveRoom = () => {
-    window.speechSynthesis?.cancel();
+    stopSpeechSynthesis();
     setLobbyAvailable(false);
     setSession(null);
   };
