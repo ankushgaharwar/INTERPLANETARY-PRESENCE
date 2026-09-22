@@ -54,10 +54,6 @@ export function RoomLobby({
   };
 
   const joinLobby = (lobby: OpenLobby) => {
-    if (lobby.hostStation === station) {
-      setError(`Choose a different location from ${lobby.hostName}.`);
-      return;
-    }
     enterRoom("daughter", lobby.roomCode);
   };
 
@@ -172,7 +168,6 @@ export function RoomLobby({
               lobbies.map((lobby) => {
                 const stationInfo = STATION_BY_ID[lobby.hostStation];
                 const StationIcon = stationInfo.icon;
-                const sameStation = lobby.hostStation === station;
                 return (
                   <article className="open-lobby-row" key={lobby.roomCode}>
                     <span className="lobby-station-icon" aria-hidden="true">
@@ -183,13 +178,9 @@ export function RoomLobby({
                       <span>
                         Hosting from {stationInfo.label} · {stationInfo.detail}
                       </span>
-                      {sameStation ? (
-                        <small>Choose another location to join</small>
-                      ) : null}
                     </div>
                     <button
                       type="button"
-                      disabled={sameStation}
                       onClick={() => joinLobby(lobby)}
                     >
                       <UsersRound aria-hidden="true" />

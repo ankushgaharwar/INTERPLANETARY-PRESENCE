@@ -56,7 +56,7 @@ pnpm build
 
 ## Interaction
 
-Enter your name and choose Earth, Moon or Space Station. Create an open lobby, or join a listed host from a different location. The lobby closes automatically when the second person arrives. The host types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
+Enter your name and choose Earth, Moon or Space Station. Create an open lobby or join a listed host; both people may use the same location. The lobby closes automatically when the second person arrives. The host types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
 
 The sequence runs automatically. Its progress rail is read-only, and timing changes with the selected station pair.
 

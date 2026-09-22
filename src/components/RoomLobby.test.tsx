@@ -65,14 +65,13 @@ describe("RoomLobby", () => {
     fireEvent.change(screen.getByLabelText("Your name"), {
       target: { value: "Maya" }
     });
-    fireEvent.click(screen.getByRole("radio", { name: /Moon/ }));
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
     expect(onEnter).toHaveBeenCalledWith(
       expect.objectContaining({
         displayName: "Maya",
         role: "daughter",
-        station: "moon",
+        station: "earth",
         roomCode: "MOON42"
       })
     );
