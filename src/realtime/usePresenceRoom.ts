@@ -3,9 +3,12 @@ import type {
   SupabaseClient
 } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { JsonValue, Room } from "@trystero-p2p/mqtt";
 import { realtimeConfig } from "./config";
-import { getPeerRoomName, PEER_APP_CONFIG } from "./peerTransport";
+import {
+  connectInternetRelay,
+  getPeerRoomName,
+  type InternetRelay
+} from "./peerTransport";
 import type {
   RoomConnectionStatus,
   RoomMessage,
@@ -157,9 +160,10 @@ export function usePresenceRoom(session: RoomSession | null) {
 
     if (!realtimeConfig.hosted) {
       let disposed = false;
-      let peerRoom: Room | null = null;
+      let peerRelay: InternetRelay | null = null;
       let heartbeat = 0;
       let pruning = 0;
+      let transportStarted = false;
       const knownPeers = new Map<string, { peer: RoomPeer; seenAt: number }>();
       knownPeers.set(localPeer.clientId, { peer: localPeer, seenAt: Date.now() });
 
@@ -172,94 +176,83 @@ export function usePresenceRoom(session: RoomSession | null) {
         });
         setPeers([...knownPeers.values()].map(({ peer }) => peer));
       };
-      let sendEnvelope = async (
-        _envelope: LocalEnvelope,
-        _target?: string
-      ) => false;
-      const publishPresence = (target?: string) => {
-        void sendEnvelope({ kind: "presence", peer: localPeer }, target);
+      let sendEnvelope = async (_envelope: LocalEnvelope) => false;
+      const publishPresence = () => {
+        void sendEnvelope({ kind: "presence", peer: localPeer });
       };
 
       const connectPeerRoom = async () => {
-        const { joinRoom } = await import("@trystero-p2p/mqtt");
-        if (disposed) {
-          return;
-        }
-
-        peerRoom = joinRoom(PEER_APP_CONFIG, getPeerRoomName(roomCode), {
-          onJoinError: () => {
-            if (!disposed) {
-              setStatus("error");
-              setError("The internet room could not connect. Try again.");
+        const relay = await connectInternetRelay({
+          topic: getPeerRoomName(roomCode),
+          onMessage: (value) => {
+            if (!isLocalEnvelope(value)) {
+              return;
             }
-          }
-        });
-        const roomAction = peerRoom.makeAction("room-data");
-        sendEnvelope = async (envelope, target) => {
-          try {
-            await roomAction.send(envelope as unknown as JsonValue, { target });
-            return true;
-          } catch {
-            return false;
-          }
-        };
-        roomAction.onMessage = (value, { peerId }) => {
-          if (!isLocalEnvelope(value)) {
-            return;
-          }
-          const envelope = value;
-          if (envelope.kind === "hello") {
-            publishPresence(peerId);
-            if (localPeer.role === "father" && messagesRef.current.length > 0) {
-              void sendEnvelope(
-                {
+            const envelope = value;
+            if (envelope.kind === "hello") {
+              publishPresence();
+              if (
+                localPeer.role === "father" &&
+                messagesRef.current.length > 0
+              ) {
+                void sendEnvelope({
                   kind: "history",
                   recipientId: envelope.clientId,
                   messages: messagesRef.current
-                },
-                peerId
-              );
+                });
+              }
+              return;
             }
-            return;
-          }
-          if (envelope.kind === "history") {
-            if (envelope.recipientId === localPeer.clientId) {
-              envelope.messages.forEach(addMessage);
+            if (envelope.kind === "history") {
+              if (envelope.recipientId === localPeer.clientId) {
+                envelope.messages.forEach(addMessage);
+              }
+              return;
             }
-            return;
-          }
-          if (envelope.kind === "message") {
-            addMessage(envelope.message);
-            return;
-          }
-          if (envelope.kind === "leave") {
-            knownPeers.delete(envelope.clientId);
+            if (envelope.kind === "message") {
+              addMessage(envelope.message);
+              return;
+            }
+            if (envelope.kind === "leave") {
+              knownPeers.delete(envelope.clientId);
+              syncPeers();
+              return;
+            }
+            knownPeers.set(envelope.peer.clientId, {
+              peer: envelope.peer,
+              seenAt: Date.now()
+            });
             syncPeers();
-            return;
+          },
+          onStatus: (nextStatus) => {
+            if (disposed) {
+              return;
+            }
+            setStatus(nextStatus);
+            if (nextStatus === "error") {
+              setError("The internet room could not connect. Try again.");
+              return;
+            }
+            if (nextStatus === "connected" && !transportStarted) {
+              transportStarted = true;
+              setError("");
+              sendRef.current = async (message) => {
+                addMessage(message);
+                return sendEnvelope({ kind: "message", message });
+              };
+              void sendEnvelope({ kind: "hello", clientId: localPeer.clientId });
+              publishPresence();
+              heartbeat = window.setInterval(publishPresence, 4_000);
+              pruning = window.setInterval(syncPeers, 4_000);
+            }
           }
-          knownPeers.set(envelope.peer.clientId, {
-            peer: envelope.peer,
-            seenAt: Date.now()
-          });
-          syncPeers();
-        };
-        peerRoom.onPeerJoin = (peerId) => {
-          void sendEnvelope(
-            { kind: "hello", clientId: localPeer.clientId },
-            peerId
-          );
-          publishPresence(peerId);
-        };
-        peerRoom.onPeerLeave = () => syncPeers();
-
-        sendRef.current = async (message) => {
-          addMessage(message);
-          return sendEnvelope({ kind: "message", message });
-        };
-
-        setStatus("connected");
-        heartbeat = window.setInterval(publishPresence, 4_000);
-        pruning = window.setInterval(syncPeers, 4_000);
+        });
+        if (disposed) {
+          relay.close();
+          return;
+        }
+        peerRelay = relay;
+        sendEnvelope = relay.publish;
       };
 
       void connectPeerRoom().catch(() => {
@@ -273,11 +266,11 @@ export function usePresenceRoom(session: RoomSession | null) {
         disposed = true;
         window.clearInterval(heartbeat);
         window.clearInterval(pruning);
-        void sendEnvelope({
+        const leave = sendEnvelope({
           kind: "leave",
           clientId: localPeer.clientId
         });
-        void peerRoom?.leave();
+        void leave.finally(() => peerRelay?.close());
         sendRef.current = async () => false;
       };
     }
@@ -449,3 +442,4 @@ export function usePresenceRoom(session: RoomSession | null) {
     transport: realtimeConfig.hosted ? "hosted" : "peer"
   } as const;
 }
+

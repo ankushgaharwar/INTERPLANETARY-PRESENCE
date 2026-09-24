@@ -24,7 +24,7 @@ export function RoomBar({
         <span className={`connection-dot is-${status}`} aria-hidden="true" />
         <div>
           <small>
-            {transport === "hosted" ? "Live lobby" : "Peer-to-peer lobby"}
+            {transport === "hosted" ? "Live lobby" : "Internet relay"}
           </small>
           <strong>{peers.length < 2 ? "Open for one person" : "Shared session"}</strong>
         </div>
@@ -55,3 +55,4 @@ export function RoomBar({
     </section>
   );
 }
+

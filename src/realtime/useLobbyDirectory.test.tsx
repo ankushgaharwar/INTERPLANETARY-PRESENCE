@@ -4,32 +4,35 @@ import type { RoomSession } from "./types";
 import { useLobbyDirectory } from "./useLobbyDirectory";
 
 const transport = vi.hoisted(() => {
-  const action = {
-    send: vi.fn(async () => undefined),
-    onMessage: null as null | ((value: unknown, context: { peerId: string }) => void)
+  const relay = {
+    publish: vi.fn(async () => true),
+    close: vi.fn()
   };
-  const room = {
-    makeAction: vi.fn(() => action),
-    onPeerJoin: null as null | ((peerId: string) => void),
-    onPeerLeave: null as null | ((peerId: string) => void),
-    leave: vi.fn(async () => undefined)
+  return {
+    relay,
+    options: null as null | {
+      topic: string;
+      onMessage: (value: unknown) => void;
+      onStatus: (
+        status: "connecting" | "connected" | "disconnected" | "error"
+      ) => void;
+    }
   };
-  return { action, room };
 });
 
-vi.mock("@trystero-p2p/mqtt", () => ({
-  getRelaySockets: () => ({ relay: { readyState: 1 } }),
-  joinRoom: vi.fn(() => transport.room)
+vi.mock("./peerTransport", () => ({
+  PEER_DIRECTORY_ROOM: "test-directory",
+  connectInternetRelay: vi.fn(async (options: NonNullable<typeof transport.options>) => {
+    transport.options = options;
+    return transport.relay;
+  })
 }));
 
 describe("useLobbyDirectory peer transport", () => {
   beforeEach(() => {
-    transport.action.send.mockClear();
-    transport.action.onMessage = null;
-    transport.room.makeAction.mockClear();
-    transport.room.leave.mockClear();
-    transport.room.onPeerJoin = null;
-    transport.room.onPeerLeave = null;
+    transport.relay.publish.mockClear();
+    transport.relay.close.mockClear();
+    transport.options = null;
   });
 
   it("advertises a host through the internet directory", async () => {
@@ -44,8 +47,11 @@ describe("useLobbyDirectory peer transport", () => {
 
     const { unmount } = renderHook(() => useLobbyDirectory(session));
 
+    await waitFor(() => expect(transport.options).not.toBeNull());
+    act(() => transport.options?.onStatus("connected"));
+
     await waitFor(() => {
-      expect(transport.action.send).toHaveBeenCalledWith(
+      expect(transport.relay.publish).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: "lobby-open",
           lobby: expect.objectContaining({
@@ -53,8 +59,7 @@ describe("useLobbyDirectory peer transport", () => {
             hostName: "Alex",
             hostStation: "moon"
           })
-        }),
-        { target: undefined }
+        })
       );
     });
 
@@ -64,22 +69,20 @@ describe("useLobbyDirectory peer transport", () => {
   it("shows an open lobby received from a remote peer", async () => {
     const { result, unmount } = renderHook(() => useLobbyDirectory(null));
 
-    await waitFor(() => expect(transport.action.onMessage).not.toBeNull());
+    await waitFor(() => expect(transport.options).not.toBeNull());
     act(() => {
-      transport.action.onMessage?.(
-        {
-          kind: "lobby-open",
-          lobby: {
-            roomCode: "EARTH567",
-            hostClientId: "remote-host",
-            hostName: "Maya",
-            hostStation: "earth",
-            hostAvatar: "atlas",
-            advertisedAt: Date.now()
-          }
-        },
-        { peerId: "remote-peer" }
-      );
+      transport.options?.onStatus("connected");
+      transport.options?.onMessage({
+        kind: "lobby-open",
+        lobby: {
+          roomCode: "EARTH567",
+          hostClientId: "remote-host",
+          hostName: "Maya",
+          hostStation: "earth",
+          hostAvatar: "atlas",
+          advertisedAt: Date.now()
+        }
+      });
     });
 
     expect(result.current.lobbies).toEqual([
@@ -89,3 +92,4 @@ describe("useLobbyDirectory peer transport", () => {
     unmount();
   });
 });
+

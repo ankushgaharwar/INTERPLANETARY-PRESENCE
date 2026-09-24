@@ -1,8 +1,11 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import type { JsonValue, Room } from "@trystero-p2p/mqtt";
 import { realtimeConfig } from "./config";
-import { PEER_APP_CONFIG, PEER_DIRECTORY_ROOM } from "./peerTransport";
+import {
+  connectInternetRelay,
+  type InternetRelay,
+  PEER_DIRECTORY_ROOM
+} from "./peerTransport";
 import type { OpenLobby, RoomConnectionStatus, RoomSession } from "./types";
 
 const DIRECTORY_NAME = "interplanetary-presence-lobbies";
@@ -60,13 +63,11 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
 
   useEffect(() => {
     let disposed = false;
-    let peerRoom: Room | null = null;
+    let peerRelay: InternetRelay | null = null;
     let supabase: SupabaseClient | null = null;
     let realtimeChannel: RealtimeChannel | null = null;
     let publishTimer = 0;
     let pruneTimer = 0;
-    let readinessTimer = 0;
-    let readinessTimeout = 0;
     let timersStarted = false;
     const knownLobbies = new Map<string, OpenLobby>();
 
@@ -112,18 +113,15 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
       }
     };
 
-    let send = async (_envelope: DirectoryEnvelope, _target?: string) => false;
-    const publishLobby = (target?: string) => {
+    let send = async (_envelope: DirectoryEnvelope) => false;
+    const publishLobby = () => {
       if (!hostLobby) {
         return;
       }
-      void send(
-        {
-          kind: "lobby-open",
-          lobby: { ...hostLobby, advertisedAt: Date.now() }
-        },
-        target
-      );
+      void send({
+        kind: "lobby-open",
+        lobby: { ...hostLobby, advertisedAt: Date.now() }
+      });
     };
 
     const startTimers = () => {
@@ -137,65 +135,35 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
     };
 
     const connectPeerDirectory = async () => {
-      const { getRelaySockets, joinRoom } = await import("@trystero-p2p/mqtt");
-      if (disposed) {
-        return;
-      }
-
-      peerRoom = joinRoom(PEER_APP_CONFIG, PEER_DIRECTORY_ROOM, {
-        onJoinError: () => {
-          if (!disposed) {
-            setStatus("error");
+      const relay = await connectInternetRelay({
+        topic: PEER_DIRECTORY_ROOM,
+        onMessage: (envelope) => {
+          if (!isDirectoryEnvelope(envelope)) {
+            return;
+          }
+          if (envelope.kind === "hello") {
+            publishLobby();
+          } else {
+            receive(envelope);
+          }
+        },
+        onStatus: (nextStatus) => {
+          if (disposed) {
+            return;
+          }
+          setStatus(nextStatus);
+          if (nextStatus === "connected") {
+            startTimers();
+            void send({ kind: "hello" });
           }
         }
       });
-      const directoryAction = peerRoom.makeAction("lobby-directory");
-      send = async (envelope, target) => {
-        try {
-          await directoryAction.send(envelope as unknown as JsonValue, { target });
-          return true;
-        } catch {
-          return false;
-        }
-      };
-      directoryAction.onMessage = (envelope, { peerId }) => {
-        if (!isDirectoryEnvelope(envelope)) {
-          return;
-        }
-        if (envelope.kind === "hello") {
-          publishLobby(peerId);
-        } else {
-          receive(envelope);
-        }
-      };
-      peerRoom.onPeerJoin = (peerId) => {
-        setStatus("connected");
-        startTimers();
-        void send({ kind: "hello" }, peerId);
-        publishLobby(peerId);
-      };
-
-      const updateReadiness = () => {
-        const hasOpenRelay = Object.values(
-          getRelaySockets() as Record<string, WebSocket>
-        ).some(
-          (socket) => socket.readyState === 1
-        );
-        if (hasOpenRelay) {
-          window.clearInterval(readinessTimer);
-          window.clearTimeout(readinessTimeout);
-          setStatus("connected");
-          startTimers();
-        }
-      };
-      readinessTimer = window.setInterval(updateReadiness, 400);
-      readinessTimeout = window.setTimeout(() => {
-        window.clearInterval(readinessTimer);
-        if (!disposed && !timersStarted) {
-          setStatus("error");
-        }
-      }, 15_000);
-      updateReadiness();
+      if (disposed) {
+        relay.close();
+        return;
+      }
+      peerRelay = relay;
+      send = relay.publish;
     };
 
     const connectHostedDirectory = async () => {
@@ -260,8 +228,6 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
       disposed = true;
       window.clearInterval(publishTimer);
       window.clearInterval(pruneTimer);
-      window.clearInterval(readinessTimer);
-      window.clearTimeout(readinessTimeout);
       const closeLobby = hostLobby
         ? send({
             kind: "lobby-close",
@@ -269,7 +235,7 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
             hostClientId: hostLobby.hostClientId
           })
         : Promise.resolve(true);
-      void peerRoom?.leave();
+      void closeLobby.finally(() => peerRelay?.close());
       if (realtimeChannel && supabase) {
         const channel = realtimeChannel;
         const client = supabase;
@@ -287,3 +253,4 @@ export function useLobbyDirectory(advertisedSession: RoomSession | null) {
 
   return { lobbies, status } as const;
 }
+

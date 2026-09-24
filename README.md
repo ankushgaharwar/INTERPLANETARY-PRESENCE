@@ -7,7 +7,7 @@ A two-person React, TypeScript, Vite and Three.js experience for communicating b
 3. Facial expression, motion and intent
 4. Point-cloud body and surrounding space
 
-Supabase Realtime Broadcast carries messages and Presence tracks the two connected participants when Supabase is configured. Without Supabase, the app uses Trystero's encrypted peer-to-peer WebRTC transport with Nostr-based discovery, so lobbies and messages still work between different networks and countries without a database or room codes.
+Supabase Realtime Broadcast carries messages and Presence tracks the two connected participants when Supabase is configured. Without Supabase, the app uses redundant public MQTT-over-WebSocket relays, so lobbies and messages still work between different networks and countries without a database or room codes.
 
 ## Run locally
 
@@ -45,7 +45,7 @@ Then open `dist/standalone.html`.
 
 The workflow in `.github/workflows/deploy-pages.yml` installs dependencies, builds `dist`, uploads the Pages artifact and deploys it. The generated site works under a repository subpath because Vite uses relative asset URLs.
 
-Rooms use public Realtime channels and an unlisted eight-character code. Messages are ephemeral and are not stored in a database. For private or persistent conversations, add Supabase Auth, private-channel authorization and message storage before production use.
+Rooms use public relay topics or public Supabase Realtime channels and an unlisted eight-character code. Messages are ephemeral and are not stored by this app, but the fallback relay is not end-to-end encrypted and must not be used for sensitive content. For private or persistent conversations, add Supabase Auth, private-channel authorization, encryption and message storage before production use.
 
 ## Test and build
 
@@ -93,3 +93,4 @@ With the reference Earth-Moon settings, text is ready at approximately 1.282 sec
 - Supabase Broadcast: https://supabase.com/docs/guides/realtime/broadcast
 - Supabase Presence: https://supabase.com/docs/guides/realtime/presence
 - GitHub Pages custom workflows: https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
+
