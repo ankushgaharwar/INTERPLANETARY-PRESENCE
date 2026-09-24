@@ -8,7 +8,7 @@ import type {
 interface RoomBarProps {
   peers: RoomPeer[];
   status: RoomConnectionStatus;
-  transport: "hosted" | "local";
+  transport: "hosted" | "peer";
   onLeave: () => void;
 }
 
@@ -23,7 +23,9 @@ export function RoomBar({
       <div className="room-identity">
         <span className={`connection-dot is-${status}`} aria-hidden="true" />
         <div>
-          <small>{transport === "hosted" ? "Live lobby" : "Local lobby"}</small>
+          <small>
+            {transport === "hosted" ? "Live lobby" : "Peer-to-peer lobby"}
+          </small>
           <strong>{peers.length < 2 ? "Open for one person" : "Shared session"}</strong>
         </div>
       </div>

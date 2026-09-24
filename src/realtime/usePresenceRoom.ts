@@ -3,7 +3,9 @@ import type {
   SupabaseClient
 } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { JsonValue, Room } from "@trystero-p2p/mqtt";
 import { realtimeConfig } from "./config";
+import { getPeerRoomName, PEER_APP_CONFIG } from "./peerTransport";
 import type {
   RoomConnectionStatus,
   RoomMessage,
@@ -64,6 +66,48 @@ const isRoomMessage = (value: unknown): value is RoomMessage => {
   );
 };
 
+const isRoomPeer = (value: unknown): value is RoomPeer => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const peer = value as Partial<RoomPeer>;
+  return (
+    typeof peer.roomCode === "string" &&
+    typeof peer.clientId === "string" &&
+    typeof peer.displayName === "string" &&
+    (peer.station === "earth" ||
+      peer.station === "moon" ||
+      peer.station === "spaceStation") &&
+    (peer.avatar === "atlas" || peer.avatar === "nova" || peer.avatar === "sol") &&
+    (peer.role === "father" || peer.role === "daughter") &&
+    typeof peer.joinedAt === "string"
+  );
+};
+
+const isLocalEnvelope = (value: unknown): value is LocalEnvelope => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const envelope = value as Partial<LocalEnvelope>;
+  if (envelope.kind === "presence") {
+    return isRoomPeer(envelope.peer);
+  }
+  if (envelope.kind === "message") {
+    return isRoomMessage(envelope.message);
+  }
+  if (envelope.kind === "hello" || envelope.kind === "leave") {
+    return typeof envelope.clientId === "string";
+  }
+  return (
+    envelope.kind === "history" &&
+    typeof envelope.recipientId === "string" &&
+    Array.isArray(envelope.messages) &&
+    envelope.messages.every(isRoomMessage)
+  );
+};
+
 const normalizeRoomCode = (roomCode: string) =>
   roomCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
 
@@ -112,13 +156,10 @@ export function usePresenceRoom(session: RoomSession | null) {
     setPeers([localPeer]);
 
     if (!realtimeConfig.hosted) {
-      if (!("BroadcastChannel" in window)) {
-        setStatus("error");
-        setError("This browser cannot open a local shared room.");
-        return;
-      }
-
-      const channel = new BroadcastChannel(`presence-room-${roomCode}`);
+      let disposed = false;
+      let peerRoom: Room | null = null;
+      let heartbeat = 0;
+      let pruning = 0;
       const knownPeers = new Map<string, { peer: RoomPeer; seenAt: number }>();
       knownPeers.set(localPeer.clientId, { peer: localPeer, seenAt: Date.now() });
 
@@ -131,70 +172,112 @@ export function usePresenceRoom(session: RoomSession | null) {
         });
         setPeers([...knownPeers.values()].map(({ peer }) => peer));
       };
-      const publishPresence = () => {
-        channel.postMessage({ kind: "presence", peer: localPeer } satisfies LocalEnvelope);
+      let sendEnvelope = async (
+        _envelope: LocalEnvelope,
+        _target?: string
+      ) => false;
+      const publishPresence = (target?: string) => {
+        void sendEnvelope({ kind: "presence", peer: localPeer }, target);
       };
 
-      channel.onmessage = (event: MessageEvent<LocalEnvelope>) => {
-        const envelope = event.data;
-        if (envelope.kind === "hello") {
-          publishPresence();
-          if (localPeer.role === "father" && messagesRef.current.length > 0) {
-            channel.postMessage({
-              kind: "history",
-              recipientId: envelope.clientId,
-              messages: messagesRef.current
-            } satisfies LocalEnvelope);
+      const connectPeerRoom = async () => {
+        const { joinRoom } = await import("@trystero-p2p/mqtt");
+        if (disposed) {
+          return;
+        }
+
+        peerRoom = joinRoom(PEER_APP_CONFIG, getPeerRoomName(roomCode), {
+          onJoinError: () => {
+            if (!disposed) {
+              setStatus("error");
+              setError("The internet room could not connect. Try again.");
+            }
           }
-          return;
-        }
-        if (envelope.kind === "history") {
-          if (envelope.recipientId === localPeer.clientId) {
-            envelope.messages.filter(isRoomMessage).forEach(addMessage);
+        });
+        const roomAction = peerRoom.makeAction("room-data");
+        sendEnvelope = async (envelope, target) => {
+          try {
+            await roomAction.send(envelope as unknown as JsonValue, { target });
+            return true;
+          } catch {
+            return false;
           }
-          return;
-        }
-        if (envelope.kind === "message" && isRoomMessage(envelope.message)) {
-          addMessage(envelope.message);
-          return;
-        }
-        if (envelope.kind === "leave") {
-          knownPeers.delete(envelope.clientId);
-          syncPeers();
-          return;
-        }
-        if (envelope.kind === "presence") {
+        };
+        roomAction.onMessage = (value, { peerId }) => {
+          if (!isLocalEnvelope(value)) {
+            return;
+          }
+          const envelope = value;
+          if (envelope.kind === "hello") {
+            publishPresence(peerId);
+            if (localPeer.role === "father" && messagesRef.current.length > 0) {
+              void sendEnvelope(
+                {
+                  kind: "history",
+                  recipientId: envelope.clientId,
+                  messages: messagesRef.current
+                },
+                peerId
+              );
+            }
+            return;
+          }
+          if (envelope.kind === "history") {
+            if (envelope.recipientId === localPeer.clientId) {
+              envelope.messages.forEach(addMessage);
+            }
+            return;
+          }
+          if (envelope.kind === "message") {
+            addMessage(envelope.message);
+            return;
+          }
+          if (envelope.kind === "leave") {
+            knownPeers.delete(envelope.clientId);
+            syncPeers();
+            return;
+          }
           knownPeers.set(envelope.peer.clientId, {
             peer: envelope.peer,
             seenAt: Date.now()
           });
           syncPeers();
+        };
+        peerRoom.onPeerJoin = (peerId) => {
+          void sendEnvelope(
+            { kind: "hello", clientId: localPeer.clientId },
+            peerId
+          );
+          publishPresence(peerId);
+        };
+        peerRoom.onPeerLeave = () => syncPeers();
+
+        sendRef.current = async (message) => {
+          addMessage(message);
+          return sendEnvelope({ kind: "message", message });
+        };
+
+        setStatus("connected");
+        heartbeat = window.setInterval(publishPresence, 4_000);
+        pruning = window.setInterval(syncPeers, 4_000);
+      };
+
+      void connectPeerRoom().catch(() => {
+        if (!disposed) {
+          setStatus("error");
+          setError("The internet room could not connect. Try again.");
         }
-      };
-
-      sendRef.current = async (message) => {
-        addMessage(message);
-        channel.postMessage({ kind: "message", message } satisfies LocalEnvelope);
-        return true;
-      };
-
-      setStatus("connected");
-      channel.postMessage({
-        kind: "hello",
-        clientId: localPeer.clientId
-      } satisfies LocalEnvelope);
-      publishPresence();
-      const heartbeat = window.setInterval(publishPresence, 4_000);
-      const pruning = window.setInterval(syncPeers, 4_000);
+      });
 
       return () => {
+        disposed = true;
         window.clearInterval(heartbeat);
         window.clearInterval(pruning);
-        channel.postMessage({
+        void sendEnvelope({
           kind: "leave",
           clientId: localPeer.clientId
-        } satisfies LocalEnvelope);
-        channel.close();
+        });
+        void peerRoom?.leave();
         sendRef.current = async () => false;
       };
     }
@@ -363,6 +446,6 @@ export function usePresenceRoom(session: RoomSession | null) {
     messages,
     error,
     sendMessage,
-    transport: realtimeConfig.hosted ? "hosted" : "local"
+    transport: realtimeConfig.hosted ? "hosted" : "peer"
   } as const;
 }

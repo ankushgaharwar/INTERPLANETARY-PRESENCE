@@ -7,7 +7,7 @@ A two-person React, TypeScript, Vite and Three.js experience for communicating b
 3. Facial expression, motion and intent
 4. Point-cloud body and surrounding space
 
-Supabase Realtime Broadcast carries messages and Presence tracks the two connected participants. No database table is required. When Supabase is not configured, the app uses `BroadcastChannel` so the room flow can be tested in two tabs on the same computer.
+Supabase Realtime Broadcast carries messages and Presence tracks the two connected participants when Supabase is configured. Without Supabase, the app uses Trystero's encrypted peer-to-peer WebRTC transport with Nostr-based discovery, so lobbies and messages still work between different networks and countries without a database or room codes.
 
 ## Run locally
 
@@ -17,7 +17,7 @@ copy .env.example .env.local
 pnpm dev
 ```
 
-Set these values in `.env.local` for cross-device rooms:
+Optionally set these values in `.env.local` to use a dedicated Supabase transport:
 
 ```dotenv
 VITE_SUPABASE_URL=https://your-project.supabase.co

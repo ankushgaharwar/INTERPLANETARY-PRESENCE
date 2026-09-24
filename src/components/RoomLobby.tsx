@@ -87,7 +87,7 @@ export function RoomLobby({
             {directoryStatus === "connected"
               ? realtimeConfig.hosted
                 ? "Open lobbies live"
-                : "Browser lobbies live"
+                : "Internet lobbies live"
               : directoryStatus === "error"
                 ? "Lobby directory unavailable"
                 : "Finding open lobbies"}
