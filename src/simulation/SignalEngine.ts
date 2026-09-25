@@ -5,7 +5,6 @@ import {
   PRESENCE_BY_ID,
   PRESENCE_FORMS,
   PRESENCE_SEQUENCE,
-  TURN_RESPONSE_GAP_SECONDS,
   VISIBILITY_SECONDS
 } from "./presence";
 import { clamp } from "./format";
@@ -74,7 +73,6 @@ export const buildTransmissionEvents = (
     settings.speedOfLightMetersPerSecond
   );
 
-  let previousTurnReadyAt = Number.NEGATIVE_INFINITY;
   const events = messages.flatMap((message, messageIndex) => {
       const messageForms = message.presenceForms
         ? PRESENCE_FORMS.filter((form) =>
@@ -82,10 +80,7 @@ export const buildTransmissionEvents = (
           )
         : PRESENCE_FORMS;
       const offsets = message.presenceFormOffsets ?? createPresenceOffsets();
-      const captureTime = Math.max(
-        message.sentAt,
-        previousTurnReadyAt + TURN_RESPONSE_GAP_SECONDS
-      );
+      const captureTime = message.sentAt;
 
       const turnEvents = messageForms.map((form) => {
         const sentAt = captureTime + (offsets[form.id] ?? 0);
@@ -125,9 +120,6 @@ export const buildTransmissionEvents = (
         } satisfies TransmissionEvent;
       });
 
-      previousTurnReadyAt = Math.max(
-        ...turnEvents.map((event) => event.renderReadyAt)
-      );
       return turnEvents;
     });
 

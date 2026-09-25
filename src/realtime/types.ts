@@ -34,6 +34,7 @@ export interface RoomMessage {
   senderStation: StationId;
   text: string;
   sentAt: number;
+  receivedAt?: number;
 }
 
 export type RoomConnectionStatus =

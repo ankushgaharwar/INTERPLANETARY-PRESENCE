@@ -46,7 +46,6 @@ export const speakPresenceMessage = (
   utterance.onerror = release;
   activeUtterances.add(utterance);
 
-  synthesis.cancel();
   synthesis.resume();
   synthesis.speak(utterance);
   window.setTimeout(() => synthesis.resume(), 80);

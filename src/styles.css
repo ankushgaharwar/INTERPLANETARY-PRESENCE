@@ -1303,6 +1303,45 @@ svg {
   color: var(--voice);
 }
 
+.composer-conversation {
+  display: grid;
+  max-height: 7rem;
+  gap: 0.35rem;
+  overflow-y: auto;
+  margin: 0 0 0.6rem;
+  padding: 0.4rem 0 0.55rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.composer-conversation li {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 7rem) minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: baseline;
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.composer-conversation li strong {
+  overflow: hidden;
+  color: var(--voice);
+  font-size: 0.69rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-conversation li.is-mine strong {
+  color: var(--expression);
+}
+
+.composer-conversation li span {
+  overflow-wrap: anywhere;
+}
+
 .composer-form {
   display: grid;
   grid-template-columns: minmax(16rem, 1fr) auto;
@@ -1679,6 +1718,16 @@ svg {
     bottom: 0.45rem;
     left: 0.45rem;
     padding: 0.55rem;
+  }
+
+  .composer-conversation {
+    max-height: 5.5rem;
+  }
+
+  .composer-conversation li {
+    grid-template-columns: minmax(2.75rem, 4rem) minmax(0, 1fr);
+    gap: 0.45rem;
+    font-size: 0.69rem;
   }
 
   .composer-form {

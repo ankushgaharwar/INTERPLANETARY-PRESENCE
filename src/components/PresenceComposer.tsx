@@ -1,5 +1,5 @@
 import { Check, Circle, Radio, Send } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PRESENCE_BY_ID,
   PRESENCE_SEQUENCE,
@@ -7,21 +7,14 @@ import {
 } from "../simulation/presence";
 import type { Participant, TransmissionEvent } from "../simulation/types";
 
-export interface SentPresenceReceipt {
-  messageId: string;
-  recipient: Participant;
-  sentAt: number;
-}
-
 interface PresenceComposerProps {
   simulationTime: number;
-  lastSent: SentPresenceReceipt | null;
   transmissionEvents: TransmissionEvent[];
-  nextSender: Participant;
   localParticipant: Participant;
   participantNames: Record<Participant, string>;
   connectionReady: boolean;
   peerConnected: boolean;
+  conversation: { id: string; senderName: string; text: string; mine: boolean }[];
   onSend: (text: string) => Promise<boolean>;
 }
 
@@ -30,31 +23,31 @@ const getRecipient = (sender: Participant): Participant =>
 
 export function PresenceComposer({
   simulationTime,
-  lastSent,
   transmissionEvents,
-  nextSender,
   localParticipant,
   participantNames,
   connectionReady,
   peerConnected,
+  conversation,
   onSend
 }: PresenceComposerProps) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
+  const conversationRef = useRef<HTMLOListElement>(null);
+  const latestVisibleId = conversation.at(-1)?.id;
+  useEffect(() => {
+    if (conversationRef.current) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    }
+  }, [latestVisibleId]);
   const orderedEvents = [...transmissionEvents].sort(
     (first, second) =>
       PRESENCE_SEQUENCE.indexOf(first.presenceForm) -
       PRESENCE_SEQUENCE.indexOf(second.presenceForm)
   );
 
-  const finalEvent = orderedEvents.at(-1);
-  const complete = finalEvent ? simulationTime >= finalEvent.renderReadyAt : false;
-  const localTurn = nextSender === localParticipant;
-  const canSend =
-    connectionReady &&
-    (!lastSent || complete) &&
-    (localTurn || !peerConnected);
+  const canSend = connectionReady;
 
   const submitMessage = async () => {
     const message = draft.trim();
@@ -78,53 +71,25 @@ export function PresenceComposer({
       simulationTime >= event.sentAt &&
       simulationTime < event.sentAt + PRESENCE_STAGGER_SECONDS
   );
-  const recipient = getRecipient(nextSender);
+  const recipient = getRecipient(localParticipant);
   const status = !connectionReady
     ? "Connecting to the shared room"
-    : !peerConnected && canSend
-      ? "Solo preview · send now or wait for someone to join"
-      : !peerConnected
-        ? "Solo preview · presence transmission in progress"
-        : !localTurn
-          ? `Waiting for ${participantNames[nextSender]}`
-          : !lastSent
-            ? `${participantNames[nextSender]}'s next turn · text leads`
-            : activeSend
-              ? `${participantNames[activeSend.sender]} sending ${PRESENCE_BY_ID[activeSend.presenceForm].shortLabel}`
-              : complete
-                ? `Full presence received · ${participantNames[nextSender]} can reply`
-                : `Waiting for ${participantNames[lastSent.recipient]} to receive all four stages`;
+    : activeSend
+      ? `${participantNames[activeSend.sender]} sending ${PRESENCE_BY_ID[activeSend.presenceForm].shortLabel}`
+      : peerConnected
+        ? "Both people connected"
+        : "Lobby open for one person";
   const turnSummary = !connectionReady
     ? "Connecting"
-    : !peerConnected && canSend
-      ? "Ready to send"
-      : !peerConnected
-        ? "Transmitting"
-        : canSend
-          ? `Your turn · to ${participantNames[recipient]}`
-          : !localTurn
-            ? `${participantNames[nextSender]}'s turn`
-            : "Receiving presence";
+    : peerConnected
+      ? `Chat with ${participantNames[recipient]}`
+      : "Ready to send";
   const draftPlaceholder = canSend
     ? "Send a chat message..."
-    : !connectionReady
-      ? "Write while the room connects..."
-      : !peerConnected
-        ? "Write a message while waiting for the second person..."
-        : !localTurn
-          ? `Write your reply while ${participantNames[nextSender]} transmits...`
-          : "Write your reply while presence reconstruction finishes...";
+    : "Write while the room connects...";
   const sendTitle = !connectionReady
     ? "Send unlocks when the room connects"
-    : canSend
-      ? "Send message"
-      : !peerConnected
-        ? "Send unlocks after this transmission finishes"
-        : !localTurn
-          ? `Send unlocks after ${participantNames[nextSender]}'s turn`
-          : !complete && lastSent
-            ? "Send unlocks after point-cloud reconstruction"
-            : "Send message";
+    : "Send message";
 
   return (
     <section className="presence-composer" aria-label="Transmit presence">
@@ -138,6 +103,17 @@ export function PresenceComposer({
         </div>
         <span className="composer-turn">{turnSummary}</span>
       </div>
+
+      {conversation.length > 0 ? (
+        <ol className="composer-conversation" aria-label="Conversation" aria-live="polite" ref={conversationRef}>
+          {conversation.map((message) => (
+            <li key={message.id} className={message.mine ? "is-mine" : ""}>
+              <strong>{message.mine ? "You" : message.senderName}</strong>
+              <span>{message.text}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
 
       <form
         className="composer-form"

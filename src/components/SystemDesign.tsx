@@ -1,5 +1,4 @@
 import {
-  BadgeCheck,
   Box,
   Eye,
   Glasses,
@@ -26,7 +25,7 @@ const pipeline = [
   { label: "Transport", detail: "Deep-space optical link", icon: RadioTower },
   { label: "Reconstruct", detail: "Audio · rig · body + scene", icon: Move3d },
   { label: "VR render", detail: "World-locked at human scale", icon: Glasses },
-  { label: "Turn gate", detail: "Reply after full presence", icon: BadgeCheck }
+  { label: "Open channel", detail: "Both directions stay available", icon: UsersRound }
 ];
 
 const vrCues = [
@@ -66,8 +65,8 @@ export function SystemDesign({ settings, onChange }: SystemDesignProps) {
         <p>
           VR presence increases as cues become spatially coherent. The system
           sends text first, converts the same message into voice, adds social
-          motion, then rebuilds the person and surrounding room before opening
-          the receiver's reply turn.
+          motion, then rebuilds the person and surrounding room. Both people
+          can send while earlier transmissions continue.
         </p>
       </header>
 
@@ -120,8 +119,8 @@ export function SystemDesign({ settings, onChange }: SystemDesignProps) {
           </div>
 
           <div className="system-equation">
-            <span>turn protocol</span>
-            <strong>text → generated voice → expression, motion & intent → point cloud → reply</strong>
+            <span>per-message sequence</span>
+            <strong>text → generated voice → expression, motion & intent → point cloud</strong>
           </div>
         </section>
 

@@ -9,7 +9,6 @@ export const PRESENCE_SEQUENCE: PresenceFormId[] = [
 ];
 
 export const PRESENCE_STAGGER_SECONDS = 0.75;
-export const TURN_RESPONSE_GAP_SECONDS = 0.85;
 
 export const PRESENCE_FORMS: PresenceFormDefinition[] = [
   {

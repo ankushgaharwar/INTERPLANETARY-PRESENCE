@@ -126,12 +126,13 @@ export function usePresenceRoom(session: RoomSession | null) {
   );
 
   const addMessage = useCallback((message: RoomMessage) => {
+    const receivedAt = performance.now();
     setMessages((current) => {
       if (current.some((candidate) => candidate.id === message.id)) {
         return current;
       }
 
-      const next = [...current, message];
+      const next = [...current, { ...message, receivedAt }];
       messagesRef.current = next;
       return next;
     });

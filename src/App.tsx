@@ -10,8 +10,7 @@ import {
   type AppMode
 } from "./components/ExperienceControls";
 import {
-  PresenceComposer,
-  type SentPresenceReceipt
+  PresenceComposer
 } from "./components/PresenceComposer";
 import { PresenceRail } from "./components/PresenceRail";
 import { RoomBar } from "./components/RoomBar";
@@ -33,7 +32,7 @@ import type {
   ScientificSettings
 } from "./simulation/types";
 
-const CLOCK_DURATION_SECONDS = 1200;
+const CLOCK_DURATION_SECONDS = 86_400;
 const WAITING_MESSAGE: ConversationMessage = {
   id: "waiting-room",
   sentAt: 0,
@@ -76,7 +75,7 @@ const getTurnStage = (
   if (pointCloud && simulationTime < pointCloud.renderReadyAt) {
     return `Point cloud reconstructing for ${participantNames[recipient]}`;
   }
-  return `Full presence received · ${participantNames[recipient]}'s reply unlocked`;
+  return `Full presence received by ${participantNames[recipient]}`;
 };
 
 const prefersReducedMotion = () =>
@@ -130,14 +129,16 @@ function LiveSession({
     [distanceMeters, settings]
   );
   const liveMessages = useMemo<ConversationMessage[]>(
-    () =>
-      room.messages.map((message) => ({
+    () => {
+      const firstReceivedAt = room.messages[0]?.receivedAt ?? 0;
+      return room.messages.map((message) => ({
         id: message.id,
-        sentAt: 0,
+        sentAt: Math.max(0, ((message.receivedAt ?? firstReceivedAt) - firstReceivedAt) / 1000),
         sender: message.senderRole,
         text: message.text,
         action: "speaks, looks and reaches"
-      })),
+      }));
+    },
     [room.messages]
   );
   const hasLiveMessages = liveMessages.length > 0;
@@ -159,18 +160,10 @@ function LiveSession({
   const [muted, setMuted] = useState(false);
   const [reducedMotion] = useState(prefersReducedMotion);
 
-  const focusEvent = useMemo(
-    () =>
-      [...events]
-        .reverse()
-        .find((event) => event.captureTime <= simulationTime) ?? events[0],
-    [events, simulationTime]
-  );
   const focusMessage = useMemo(
     () =>
-      messages.find((message) => message.id === focusEvent?.messageId) ??
-      messages[0],
-    [focusEvent?.messageId, messages]
+      [...messages].reverse().find((message) => message.sentAt <= simulationTime) ?? messages[0],
+    [messages, simulationTime]
   );
   const focusEvents = useMemo(
     () => events.filter((event) => event.messageId === focusMessage.id),
@@ -184,24 +177,19 @@ function LiveSession({
     [focusEvents, simulationTime]
   );
   const lastMessage = liveMessages.at(-1);
-  const lastSent: SentPresenceReceipt | null = lastMessage
-    ? {
-        messageId: lastMessage.id,
-        recipient: getRecipient(lastMessage.sender),
-        sentAt: lastMessage.sentAt
-      }
-    : null;
-  const lastSentEvents = useMemo(
-    () =>
-      lastSent
-        ? events.filter((event) => event.messageId === lastSent.messageId)
-        : [],
-    [events, lastSent]
-  );
+  const textReadyAt = useMemo(() => new Map(events.filter((event) =>
+    event.presenceForm === "text").map((event) => [event.messageId, event.renderReadyAt])), [events]);
+  const visibleConversation = useMemo(() => room.messages.filter((message) => {
+    if (message.senderId === session.clientId) return true;
+    const readyAt = textReadyAt.get(message.id);
+    return readyAt !== undefined && simulationTime >= readyAt;
+  }).map((message) => ({
+    id: message.id,
+    senderName: message.senderName,
+    text: message.text,
+    mine: message.senderId === session.clientId
+  })), [room.messages, session.clientId, simulationTime, textReadyAt]);
   const recipient = getRecipient(focusMessage.sender);
-  const nextSender = lastMessage
-    ? getRecipient(lastMessage.sender)
-    : "father";
   const propagationTime =
     activeSettings.earthMoonDistanceMeters /
     activeSettings.speedOfLightMetersPerSecond;
@@ -403,7 +391,7 @@ function LiveSession({
                 </span>
                 <span>Text {formatSeconds(textDeliveryTime)}</span>
                 <span>Full {formatSeconds(fullPresenceTime)}</span>
-                <strong>{formatClock(simulationTime)}</strong>
+                <strong>{formatClock(Math.max(0, simulationTime - focusMessage.sentAt))}</strong>
               </div>
             </div>
           </header>
@@ -478,13 +466,12 @@ function LiveSession({
 
       <PresenceComposer
         simulationTime={simulationTime}
-        lastSent={lastSent}
-        transmissionEvents={lastSentEvents}
-        nextSender={nextSender}
+        transmissionEvents={focusEvents}
         localParticipant={session.role}
         participantNames={participantNames}
         connectionReady={room.status === "connected" && !roomFull}
         peerConnected={peerConnected}
+        conversation={visibleConversation}
         onSend={room.sendMessage}
       />
     </main>

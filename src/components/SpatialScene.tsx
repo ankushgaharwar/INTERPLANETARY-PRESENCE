@@ -1145,15 +1145,13 @@ const getLatestTurn = (
   recipient: Participant,
   simulationTime: number
 ) => {
-  const receivedTurns = events.filter(
-    (event) =>
-      event.recipient === recipient && event.captureTime <= simulationTime
-  );
-  const latestCapture = Math.max(
-    Number.NEGATIVE_INFINITY,
-    ...receivedTurns.map((event) => event.captureTime)
-  );
-  return receivedTurns.filter((event) => event.captureTime === latestCapture);
+  const receivedTurns = events.filter((event) =>
+    event.recipient === recipient && event.captureTime <= simulationTime);
+  const latest = receivedTurns.reduce<TransmissionEvent | null>((current, event) =>
+    !current || event.captureTime > current.captureTime ||
+    (event.captureTime === current.captureTime && event.messageIndex > current.messageIndex)
+      ? event : current, null);
+  return receivedTurns.filter((event) => event.messageId === latest?.messageId);
 };
 
 const setAvatarMotion = (
@@ -1527,36 +1525,42 @@ export function SpatialScene({
         packet.scale.setScalar(current.selectedForm === form ? 1.45 : 1);
       });
 
-      const voice = formEvents.voice;
-      const expression = formEvents.expression;
-      const pointCloud = formEvents.pointCloud;
-      const speaking = Boolean(
-        voice &&
-          current.simulationTime >= voice.sentAt &&
-          current.simulationTime < (pointCloud?.sentAt ?? voice.sentAt) + 0.45
-      );
-      const gesturing = Boolean(
-        expression &&
-          current.simulationTime >= expression.sentAt - 0.2 &&
-          current.simulationTime < (pointCloud?.sentAt ?? expression.sentAt) + 0.7
-      );
+      const cloudStarts = new Map(current.events.filter((event) =>
+        event.presenceForm === "pointCloud").map((event) => [event.messageId, event.sentAt]));
+      const activity = {
+        father: { speaking: false, gesturing: false },
+        daughter: { speaking: false, gesturing: false }
+      };
+      current.events.forEach((event) => {
+        const cloudStart = cloudStarts.get(event.messageId) ?? event.sentAt;
+        if (event.presenceForm === "voice" &&
+          current.simulationTime >= event.sentAt &&
+          current.simulationTime < cloudStart + 0.45) {
+          activity[event.sender].speaking = true;
+        }
+        if (event.presenceForm === "expression" &&
+          current.simulationTime >= event.sentAt - 0.2 &&
+          current.simulationTime < cloudStart + 0.7) {
+          activity[event.sender].gesturing = true;
+        }
+      });
       setAvatarMotion(
         father,
-        source === "father" && speaking,
-        source === "father" && gesturing,
+        activity.father.speaking,
+        activity.father.gesturing,
         elapsed,
         current.reducedMotion
       );
       setAvatarMotion(
         daughter,
-        source === "daughter" && speaking,
-        source === "daughter" && gesturing,
+        activity.daughter.speaking,
+        activity.daughter.gesturing,
         elapsed,
         current.reducedMotion
       );
 
-      fatherAnchor.material.opacity = source === "father" ? 0.68 : 0.2;
-      daughterAnchor.material.opacity = source === "daughter" ? 0.68 : 0.2;
+      fatherAnchor.material.opacity = source === "father" || activity.father.speaking ? 0.68 : 0.2;
+      daughterAnchor.material.opacity = source === "daughter" || activity.daughter.speaking ? 0.68 : 0.2;
 
       updateMonitor(
         fatherMonitor,

@@ -9,8 +9,7 @@ import { conversation } from "./conversation";
 import { getStationDistanceMeters } from "../realtime/stations";
 import {
   PRESENCE_SEQUENCE,
-  PRESENCE_STAGGER_SECONDS,
-  TURN_RESPONSE_GAP_SECONDS
+  PRESENCE_STAGGER_SECONDS
 } from "./presence";
 import {
   SignalEngine,
@@ -51,7 +50,7 @@ describe("SignalEngine scientific calculations", () => {
     expect(events[3].sentAt).toBe(PRESENCE_STAGGER_SECONDS * 3);
   });
 
-  it("opens the reply only after the previous point cloud is ready", () => {
+  it("starts another message while the previous point cloud is still in transit", () => {
     const events = buildTransmissionEvents(
       conversation.slice(0, 2),
       createReferenceSettings()
@@ -65,11 +64,22 @@ describe("SignalEngine scientific calculations", () => {
     );
 
     expect(daughterTurn[0].sender).toBe("daughter");
-    expect(daughterTurn[0].captureTime).toBeCloseTo(
-      fatherReadyAt + TURN_RESPONSE_GAP_SECONDS,
-      6
-    );
-    expect(daughterTurn.every((event) => event.sentAt >= fatherReadyAt)).toBe(true);
+    expect(daughterTurn[0].captureTime).toBe(1);
+    expect(daughterTurn[0].captureTime).toBeLessThan(fatherReadyAt);
+    expect(daughterTurn.map((event) => event.presenceForm)).toEqual(PRESENCE_SEQUENCE);
+  });
+
+  it("does not wait between messages from the same sender", () => {
+    const events = buildTransmissionEvents([
+      { ...conversation[0], sentAt: 0 },
+      { ...conversation[2], sentAt: 0.5 }
+    ], createReferenceSettings());
+    const firstPointCloud = events.find((event) =>
+      event.messageId === "father-00" && event.presenceForm === "pointCloud");
+    const secondText = events.find((event) =>
+      event.messageId === "father-02" && event.presenceForm === "text");
+    expect(secondText?.captureTime).toBe(0.5);
+    expect(secondText!.captureTime).toBeLessThan(firstPointCloud!.renderReadyAt);
   });
 
   it("delivers text before audio, motion and point cloud", () => {
