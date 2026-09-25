@@ -47,7 +47,14 @@ export async function connectInternetRelay({
   onMessage,
   onStatus
 }: InternetRelayOptions): Promise<InternetRelay> {
-  const { connect } = await import("mqtt");
+  const mqttModule = await import("mqtt");
+  const connectClient =
+    mqttModule.connect ??
+    (mqttModule.default as unknown as { connect?: typeof mqttModule.connect })
+      ?.connect;
+  if (typeof connectClient !== "function") {
+    throw new Error("The MQTT browser client could not be loaded.");
+  }
   const senderId = `ip_${crypto.randomUUID().replaceAll("-", "").slice(0, 18)}`;
   const clients: MqttClient[] = [];
   const seenMessages = new Set<string>();
@@ -62,7 +69,7 @@ export async function connectInternetRelay({
   };
 
   RELAY_URLS.forEach((url, index) => {
-    const client = connect(url, {
+    const client = connectClient(url, {
       clean: true,
       clientId: `${senderId}_${index}`,
       connectTimeout: 10_000,
