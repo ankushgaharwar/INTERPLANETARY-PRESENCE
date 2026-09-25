@@ -870,6 +870,28 @@ svg {
   overflow-wrap: anywhere;
 }
 
+.browse-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.browse-actions .enter-room {
+  display: inline-flex;
+  min-height: 44px;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 620;
+}
+
+.browse-actions .enter-room svg {
+  width: 16px;
+  height: 16px;
+}
+
 .lobby-publication {
   display: flex;
   gap: 0.75rem;
@@ -1484,6 +1506,7 @@ svg {
   }
 
   .create-lobby-row > button,
+  .browse-actions .enter-room,
   .enter-room {
     width: 100%;
   }

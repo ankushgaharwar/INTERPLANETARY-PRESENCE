@@ -23,6 +23,9 @@ describe("RoomLobby", () => {
     );
 
     expect(screen.queryByLabelText("Room code")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Your name")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create open lobby" }));
+    expect(screen.getByRole("heading", { name: "Create an open lobby" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Your name"), {
       target: { value: "Alex" }
     });
@@ -64,17 +67,19 @@ describe("RoomLobby", () => {
     expect(screen.getByText("Alex")).toBeInTheDocument();
     expect(screen.getByText(/Hosting from Earth/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Room code")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Your name")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Your name"), {
-      target: { value: "Maya" }
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /Sol/ }));
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
     expect(onEnter).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Join Alex's lobby" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Your name"), {
+      target: { value: "Maya" }
+    });
     expect(screen.getByRole("radio", { name: /Earth/ })).toBeDisabled();
     expect(screen.getByRole("radio", { name: /Atlas/ })).toBeDisabled();
     expect(screen.getAllByText("Selected by host")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("radio", { name: /Sol/ }));
     fireEvent.click(screen.getByRole("radio", { name: /Earth/ }));
     fireEvent.click(screen.getByRole("radio", { name: /Atlas/ }));
     fireEvent.click(screen.getByRole("button", { name: "Join lobby" }));

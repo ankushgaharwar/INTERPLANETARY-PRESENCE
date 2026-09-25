@@ -56,7 +56,7 @@ pnpm build
 
 ## Interaction
 
-Enter your name and choose Earth, Moon or Space Station. Create an open lobby and wait for the online publication confirmation, or select a listed host. The join step marks the host's location and avatar as selected and unavailable; the guest chooses from the remaining options. The lobby closes automatically when the second person arrives. The host types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
+Choose Create open lobby or select a listed host, then enter your name and select a location and avatar for that session. The join step marks the host's location and avatar as selected and unavailable; the guest chooses from the remaining options. The lobby closes automatically when the second person arrives. The host types first. Sending is the only trigger: text travels first, the same message follows as generated voice, embodied cues arrive next and the point cloud completes the presence. Each reply unlocks only after all four stages reach the other participant.
 
 The directory refresh button reconnects and reads the retained lobby snapshot. Do not interpret an unavailable directory as an empty one: the UI reports these separately. After a deployment, reload both participants' pages to use the same protocol version. Public relays are shared demonstration services without an uptime guarantee; use a dedicated Supabase project for a controlled deployment.
 

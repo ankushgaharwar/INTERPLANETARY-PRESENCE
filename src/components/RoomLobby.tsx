@@ -50,6 +50,7 @@ export function RoomLobby({
   const [station, setStation] = useState<StationId>("earth");
   const [avatar, setAvatar] = useState<AvatarId>("atlas");
   const [error, setError] = useState("");
+  const [screen, setScreen] = useState<"browse" | "create" | "join">("browse");
   const [selectedLobby, setSelectedLobby] = useState<OpenLobby | null>(null);
   const entryRef = useRef<HTMLHeadingElement>(null);
   const selectedIsOpen = !selectedLobby || lobbies.some((lobby) =>
@@ -88,11 +89,28 @@ export function RoomLobby({
 
   const joinLobby = (lobby: OpenLobby) => {
     setSelectedLobby(lobby);
-    if (station === lobby.hostStation) setStation(STATIONS.find((option) => option.id !== lobby.hostStation)!.id);
-    if (avatar === lobby.hostAvatar) setAvatar(AVATARS.find((option) => option.id !== lobby.hostAvatar)!.id);
+    setStation(STATIONS.find((option) => option.id !== lobby.hostStation)!.id);
+    setAvatar(AVATARS.find((option) => option.id !== lobby.hostAvatar)!.id);
+    setScreen("join");
     setError("");
     entryRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     entryRef.current?.focus();
+  };
+
+  const createLobby = () => {
+    setSelectedLobby(null);
+    setStation("earth");
+    setAvatar("atlas");
+    setScreen("create");
+    setError("");
+    entryRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    entryRef.current?.focus();
+  };
+
+  const browseLobbies = () => {
+    setSelectedLobby(null);
+    setScreen("browse");
+    setError("");
   };
 
   return (
@@ -122,181 +140,198 @@ export function RoomLobby({
         <div className="entry-heading">
           <p className="eyebrow">two-person spatial session</p>
           <h2 ref={entryRef} tabIndex={-1} id="room-entry-title">
-            {selectedLobby ? `Join ${selectedLobby.hostName}'s lobby` : "Create or join an open lobby"}
+            {screen === "join" && selectedLobby
+              ? `Join ${selectedLobby.hostName}'s lobby`
+              : screen === "create" ? "Create an open lobby" : "Create or join an open lobby"}
           </h2>
-          {selectedLobby ? (
+          {screen !== "browse" ? (
             <div className="join-host-summary">
-              <button type="button" className="icon-button" title="Back to create a lobby"
-                aria-label="Cancel joining" onClick={() => { setSelectedLobby(null); setError(""); }}>
+              <button type="button" className="icon-button" title="Back to open lobbies"
+                aria-label="Back to open lobbies" onClick={browseLobbies}>
                 <ArrowLeft aria-hidden="true" />
               </button>
-              <span>{selectedLobby.hostName} · {STATION_BY_ID[selectedLobby.hostStation].label} · {AVATAR_BY_ID[selectedLobby.hostAvatar].label}</span>
+              {selectedLobby ? (
+                <span>{selectedLobby.hostName} · {STATION_BY_ID[selectedLobby.hostStation].label} · {AVATAR_BY_ID[selectedLobby.hostAvatar].label}</span>
+              ) : <span>Your location and avatar will appear in the lobby list.</span>}
             </div>
           ) : null}
         </div>
 
-        <label className="profile-name">
-          <span>Your name</span>
-          <input
-            value={displayName}
-            maxLength={32}
-            autoComplete="name"
-            placeholder="Name"
-            onChange={(event) => {
-              setDisplayName(event.target.value);
-              setError("");
-            }}
-          />
-        </label>
+        {screen !== "browse" ? (
+          <>
+            <label className="profile-name">
+              <span>Your name</span>
+              <input
+                value={displayName}
+                maxLength={32}
+                autoComplete="name"
+                placeholder="Name"
+                onChange={(event) => {
+                  setDisplayName(event.target.value);
+                  setError("");
+                }}
+              />
+            </label>
 
-        <div className="entry-section-heading">
-          <span>Your location</span>
-          <strong>{STATION_BY_ID[station].label}</strong>
-        </div>
-
-        <div className="station-picker" role="radiogroup" aria-label="Station">
-          {STATIONS.map(({ id, label, detail, icon: Icon }) => (
-            <button
-              key={id}
-              className={selectedLobby?.hostStation === id ? "is-taken" : station === id ? "is-selected" : ""}
-              type="button"
-              role="radio"
-              aria-checked={station === id}
-              disabled={selectedLobby?.hostStation === id}
-              onClick={() => {
-                setStation(id);
-                setError("");
-              }}
-            >
-              <Icon aria-hidden="true" />
-              <span>
-                <strong>{label}</strong>
-                <small>{selectedLobby?.hostStation === id ? "Selected by host" : detail}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="entry-section-heading">
-          <span>Your avatar</span>
-          <strong>{AVATAR_BY_ID[avatar].label}</strong>
-        </div>
-
-        <div className="avatar-picker" role="radiogroup" aria-label="Avatar">
-          {AVATARS.map((option) => (
-            <button
-              key={option.id}
-              className={selectedLobby?.hostAvatar === option.id ? "is-taken" : avatar === option.id ? "is-selected" : ""}
-              type="button"
-              role="radio"
-              aria-checked={avatar === option.id}
-              aria-label={`${option.label}, ${selectedLobby?.hostAvatar === option.id ? "Selected by host" : option.detail}`}
-              disabled={selectedLobby?.hostAvatar === option.id}
-              onClick={() => {
-                setAvatar(option.id);
-                setError("");
-              }}
-            >
-              <span
-                className="avatar-preview"
-                style={avatarStyle(option.id)}
-                aria-hidden="true"
-              >
-                <i />
-              </span>
-              <span>
-                <strong>{option.label}</strong>
-                <small>{selectedLobby?.hostAvatar === option.id ? "Selected by host" : option.detail}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="create-lobby-row">
-          <div>
-            <strong>{selectedLobby ? "Join" : "Host"} from {STATION_BY_ID[station].label}</strong>
-            <small>{selectedLobby ? `${AVATAR_BY_ID[avatar].label} · ${selectedIsOpen ? "One place available" : "Lobby no longer available"}` : "Your name and location will appear in the public lobby list."}</small>
-          </div>
-          <button
-            className="enter-room"
-            type="button"
-            disabled={directoryStatus !== "connected" || !selectedIsOpen}
-            onClick={() => selectedLobby ? enterRoom("daughter", selectedLobby.roomCode) : enterRoom("father", createRoomCode())}
-          >
-            {selectedLobby ? <UsersRound aria-hidden="true" /> : <Plus aria-hidden="true" />}
-            {selectedLobby ? "Join lobby" : "Create open lobby"}
-          </button>
-        </div>
-
-        {error ? (
-          <p className="room-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        <section className="open-lobbies" aria-labelledby="open-lobbies-title">
-          <header className="open-lobbies-heading">
-            <div>
-              <p className="eyebrow">available now</p>
-              <h3 id="open-lobbies-title">Open lobbies</h3>
+            <div className="entry-section-heading">
+              <span>Your location</span>
+              <strong>{STATION_BY_ID[station].label}</strong>
             </div>
-            <div className="directory-actions">
-              <span>{lobbies.length} waiting</span>
-              <button className="icon-button" type="button" title="Refresh open lobbies"
-                aria-label="Refresh open lobbies" onClick={onRefresh}>
-                <RefreshCw aria-hidden="true" />
+
+            <div className="station-picker" role="radiogroup" aria-label="Station">
+              {STATIONS.map(({ id, label, detail, icon: Icon }) => (
+                <button
+                  key={id}
+                  className={selectedLobby?.hostStation === id ? "is-taken" : station === id ? "is-selected" : ""}
+                  type="button"
+                  role="radio"
+                  aria-checked={station === id}
+                  disabled={selectedLobby?.hostStation === id}
+                  onClick={() => {
+                    setStation(id);
+                    setError("");
+                  }}
+                >
+                  <Icon aria-hidden="true" />
+                  <span>
+                    <strong>{label}</strong>
+                    <small>{selectedLobby?.hostStation === id ? "Selected by host" : detail}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="entry-section-heading">
+              <span>Your avatar</span>
+              <strong>{AVATAR_BY_ID[avatar].label}</strong>
+            </div>
+
+            <div className="avatar-picker" role="radiogroup" aria-label="Avatar">
+              {AVATARS.map((option) => (
+                <button
+                  key={option.id}
+                  className={selectedLobby?.hostAvatar === option.id ? "is-taken" : avatar === option.id ? "is-selected" : ""}
+                  type="button"
+                  role="radio"
+                  aria-checked={avatar === option.id}
+                  aria-label={`${option.label}, ${selectedLobby?.hostAvatar === option.id ? "Selected by host" : option.detail}`}
+                  disabled={selectedLobby?.hostAvatar === option.id}
+                  onClick={() => {
+                    setAvatar(option.id);
+                    setError("");
+                  }}
+                >
+                  <span
+                    className="avatar-preview"
+                    style={avatarStyle(option.id)}
+                    aria-hidden="true"
+                  >
+                    <i />
+                  </span>
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small>{selectedLobby?.hostAvatar === option.id ? "Selected by host" : option.detail}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="create-lobby-row">
+              <div>
+                <strong>{selectedLobby ? "Join" : "Host"} from {STATION_BY_ID[station].label}</strong>
+                <small>{selectedLobby ? `${AVATAR_BY_ID[avatar].label} · ${selectedIsOpen ? "One place available" : "Lobby no longer available"}` : "Your name and location will appear in the public lobby list."}</small>
+              </div>
+              <button
+                className="enter-room"
+                type="button"
+                disabled={directoryStatus !== "connected" || !selectedIsOpen}
+                onClick={() => selectedLobby ? enterRoom("daughter", selectedLobby.roomCode) : enterRoom("father", createRoomCode())}
+              >
+                {selectedLobby ? <UsersRound aria-hidden="true" /> : <Plus aria-hidden="true" />}
+                {selectedLobby ? "Join lobby" : "Create open lobby"}
               </button>
             </div>
-          </header>
 
-          <div className="open-lobby-list" aria-live="polite">
-            {lobbies.length === 0 ? (
-              <p className="empty-lobbies">
-                {directoryStatus === "error" || directoryStatus === "disconnected"
-                  ? "Cannot reach the online lobby service. Check your connection and refresh."
-                  : directoryStatus === "connecting"
-                  ? "Looking for hosts..."
-                  : "No one is waiting yet. Create the first open lobby."}
+            {error ? (
+              <p className="room-error" role="alert">
+                {error}
               </p>
-            ) : (
-              lobbies.map((lobby) => {
-                const stationInfo = STATION_BY_ID[lobby.hostStation];
-                const StationIcon = stationInfo.icon;
-                return (
-                  <article className="open-lobby-row" key={lobby.roomCode}>
-                    <span className="lobby-station-icon" aria-hidden="true">
-                      <StationIcon />
-                    </span>
-                    <div className="open-lobby-copy">
-                      <strong className="lobby-host-name">
-                        <span
-                          className="avatar-preview is-small"
-                          style={avatarStyle(lobby.hostAvatar)}
-                          aria-hidden="true"
-                        >
-                          <i />
-                        </span>
-                        {lobby.hostName}
-                      </strong>
-                      <span>
-                        Hosting from {stationInfo.label} · {stationInfo.detail}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={directoryStatus !== "connected"}
-                      onClick={() => joinLobby(lobby)}
-                    >
-                      <UsersRound aria-hidden="true" />
-                      Join
-                      <ArrowRight aria-hidden="true" />
-                    </button>
-                  </article>
-                );
-              })
-            )}
+            ) : null}
+          </>
+        ) : (
+          <div className="browse-actions">
+            <button type="button" className="enter-room" onClick={createLobby}>
+              <Plus aria-hidden="true" />
+              Create open lobby
+            </button>
           </div>
-        </section>
+        )}
+
+        {screen === "browse" ? (
+          <section className="open-lobbies" aria-labelledby="open-lobbies-title">
+            <header className="open-lobbies-heading">
+              <div>
+                <p className="eyebrow">available now</p>
+                <h3 id="open-lobbies-title">Open lobbies</h3>
+              </div>
+              <div className="directory-actions">
+                <span>{lobbies.length} waiting</span>
+                <button className="icon-button" type="button" title="Refresh open lobbies"
+                  aria-label="Refresh open lobbies" onClick={onRefresh}>
+                  <RefreshCw aria-hidden="true" />
+                </button>
+              </div>
+            </header>
+
+            <div className="open-lobby-list" aria-live="polite">
+              {lobbies.length === 0 ? (
+                <p className="empty-lobbies">
+                  {directoryStatus === "error" || directoryStatus === "disconnected"
+                    ? "Cannot reach the online lobby service. Check your connection and refresh."
+                    : directoryStatus === "connecting"
+                    ? "Looking for hosts..."
+                    : "No one is waiting yet. Create the first open lobby."}
+                </p>
+              ) : (
+                lobbies.map((lobby) => {
+                  const stationInfo = STATION_BY_ID[lobby.hostStation];
+                  const StationIcon = stationInfo.icon;
+                  return (
+                    <article className="open-lobby-row" key={lobby.roomCode}>
+                      <span className="lobby-station-icon" aria-hidden="true">
+                        <StationIcon />
+                      </span>
+                      <div className="open-lobby-copy">
+                        <strong className="lobby-host-name">
+                          <span
+                            className="avatar-preview is-small"
+                            style={avatarStyle(lobby.hostAvatar)}
+                            aria-hidden="true"
+                          >
+                            <i />
+                          </span>
+                          {lobby.hostName}
+                        </strong>
+                        <span>
+                          Hosting from {stationInfo.label} · {stationInfo.detail}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={directoryStatus !== "connected"}
+                        onClick={() => joinLobby(lobby)}
+                      >
+                        <UsersRound aria-hidden="true" />
+                        Join
+                        <ArrowRight aria-hidden="true" />
+                      </button>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        ) : null}
       </section>
     </main>
   );
