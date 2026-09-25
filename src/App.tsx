@@ -466,7 +466,7 @@ function LiveSession({
 
       <PresenceComposer
         simulationTime={simulationTime}
-        transmissionEvents={focusEvents}
+        transmissionEvents={hasLiveMessages ? focusEvents : []}
         localParticipant={session.role}
         participantNames={participantNames}
         connectionReady={room.status === "connected" && !roomFull}
