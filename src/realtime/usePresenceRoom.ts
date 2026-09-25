@@ -131,9 +131,7 @@ export function usePresenceRoom(session: RoomSession | null) {
         return current;
       }
 
-      const next = [...current, message].sort(
-        (first, second) => first.sentAt - second.sentAt || first.id.localeCompare(second.id)
-      );
+      const next = [...current, message];
       messagesRef.current = next;
       return next;
     });
@@ -164,11 +162,11 @@ export function usePresenceRoom(session: RoomSession | null) {
       let heartbeat = 0;
       let pruning = 0;
       let transportStarted = false;
-      const knownPeers = new Map<string, { peer: RoomPeer; seenAt: number }>();
-      knownPeers.set(localPeer.clientId, { peer: localPeer, seenAt: Date.now() });
+      const knownPeers = new Map<string, { peer: RoomPeer; seenAt: number; sources: Set<string> }>();
+      knownPeers.set(localPeer.clientId, { peer: localPeer, seenAt: Date.now(), sources: new Set(["self"]) });
 
       const syncPeers = () => {
-        const expiry = Date.now() - 12_000;
+        const expiry = Date.now() - 180_000;
         knownPeers.forEach((value, key) => {
           if (key !== localPeer.clientId && value.seenAt < expiry) {
             knownPeers.delete(key);
@@ -184,8 +182,10 @@ export function usePresenceRoom(session: RoomSession | null) {
       const connectPeerRoom = async () => {
         const relay = await connectInternetRelay({
           topic: getPeerRoomName(roomCode),
-          onMessage: (value) => {
-            if (!isLocalEnvelope(value)) {
+          will: { topic: getPeerRoomName(roomCode),
+            payload: { kind: "leave", clientId: localPeer.clientId } },
+          onMessage: (value, context) => {
+            if (disposed || !isLocalEnvelope(value)) {
               return;
             }
             const envelope = value;
@@ -210,17 +210,21 @@ export function usePresenceRoom(session: RoomSession | null) {
               return;
             }
             if (envelope.kind === "message") {
-              addMessage(envelope.message);
+              if (envelope.message.roomCode === roomCode) addMessage(envelope.message);
               return;
             }
             if (envelope.kind === "leave") {
-              knownPeers.delete(envelope.clientId);
+              const peer = knownPeers.get(envelope.clientId);
+              peer?.sources.delete(context.source);
+              if (!peer?.sources.size) knownPeers.delete(envelope.clientId);
               syncPeers();
               return;
             }
+            if (envelope.peer.roomCode !== roomCode) return;
             knownPeers.set(envelope.peer.clientId, {
               peer: envelope.peer,
-              seenAt: Date.now()
+              seenAt: Date.now(),
+              sources: new Set([...(knownPeers.get(envelope.peer.clientId)?.sources ?? []), context.source])
             });
             syncPeers();
           },
@@ -233,17 +237,26 @@ export function usePresenceRoom(session: RoomSession | null) {
               setError("The internet room could not connect. Try again.");
               return;
             }
-            if (nextStatus === "connected" && !transportStarted) {
-              transportStarted = true;
-              setError("");
-              sendRef.current = async (message) => {
+            if (nextStatus === "connected") setError("");
+          },
+          onReady: (connectedRelay) => {
+            if (disposed) return;
+            sendEnvelope = connectedRelay.publish;
+            sendRef.current = async (message) => {
+              const sent = await sendEnvelope({ kind: "message", message });
+              if (disposed) return false;
+              if (sent) {
                 addMessage(message);
-                return sendEnvelope({ kind: "message", message });
-              };
-              void sendEnvelope({ kind: "hello", clientId: localPeer.clientId });
-              publishPresence();
-              heartbeat = window.setInterval(publishPresence, 4_000);
-              pruning = window.setInterval(syncPeers, 4_000);
+                setError("");
+              } else setError("The message was not sent. Your draft is saved; try again.");
+              return sent;
+            };
+            void sendEnvelope({ kind: "hello", clientId: localPeer.clientId });
+            publishPresence();
+            if (!transportStarted) {
+              transportStarted = true;
+              heartbeat = window.setInterval(publishPresence, 20_000);
+              pruning = window.setInterval(syncPeers, 20_000);
             }
           }
         });
@@ -442,4 +455,3 @@ export function usePresenceRoom(session: RoomSession | null) {
     transport: realtimeConfig.hosted ? "hosted" : "peer"
   } as const;
 }
-

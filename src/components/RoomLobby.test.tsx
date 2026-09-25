@@ -71,11 +71,19 @@ describe("RoomLobby", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Sol/ }));
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
+    expect(onEnter).not.toHaveBeenCalled();
+    expect(screen.getByRole("radio", { name: /Earth/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Atlas/ })).toBeDisabled();
+    expect(screen.getAllByText("Selected by host")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("radio", { name: /Earth/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Atlas/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Join lobby" }));
+
     expect(onEnter).toHaveBeenCalledWith(
       expect.objectContaining({
         displayName: "Maya",
         role: "daughter",
-        station: "earth",
+        station: "moon",
         avatar: "sol",
         roomCode: "MOON42"
       })

@@ -1,5 +1,5 @@
 import { Check, Circle, Radio, Send } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   PRESENCE_BY_ID,
   PRESENCE_SEQUENCE,
@@ -40,6 +40,8 @@ export function PresenceComposer({
   onSend
 }: PresenceComposerProps) {
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const orderedEvents = [...transmissionEvents].sort(
     (first, second) =>
       PRESENCE_SEQUENCE.indexOf(first.presenceForm) -
@@ -56,13 +58,18 @@ export function PresenceComposer({
 
   const submitMessage = async () => {
     const message = draft.trim();
-    if (!message || !canSend) {
+    if (!message || !canSend || sendingRef.current) {
       return;
     }
 
-    const sent = await onSend(message);
-    if (sent) {
-      setDraft("");
+    sendingRef.current = true;
+    setSending(true);
+    try {
+      const sent = await onSend(message);
+      if (sent) setDraft((current) => current.trim() === message ? "" : current);
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
     }
   };
 
@@ -161,10 +168,10 @@ export function PresenceComposer({
           type="submit"
           aria-label="Send message"
           title={sendTitle}
-          disabled={!draft.trim() || !canSend}
+          disabled={!draft.trim() || !canSend || sending}
         >
           <Send aria-hidden="true" />
-          <span>Send</span>
+          <span>{sending ? "Sending..." : "Send"}</span>
         </button>
       </form>
 

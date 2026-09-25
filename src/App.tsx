@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   prepareSpeechSynthesis,
@@ -97,11 +97,13 @@ interface LiveSessionProps {
   session: RoomSession;
   onLeave: () => void;
   onLobbyAvailabilityChange: (isOpen: boolean) => void;
+  directory: ReturnType<typeof useLobbyDirectory>;
 }
 
 function LiveSession({
   session,
   onLeave,
+  directory,
   onLobbyAvailabilityChange
 }: LiveSessionProps) {
   const room = usePresenceRoom(session);
@@ -357,6 +359,20 @@ function LiveSession({
         onLeave={onLeave}
       />
 
+      {session.role === "father" && !peerConnected ? (
+        <div className={`lobby-publication ${directory.published ? "is-published" : ""}`} role="status">
+          <span>{directory.published
+            ? `Your lobby is listed online as ${session.displayName} · ${STATION_BY_ID[session.station].label}`
+            : directory.status === "error" || directory.publicationError
+              ? "Your lobby is not online. Reconnect to publish it."
+              : "Publishing your lobby online..."}</span>
+          <button type="button" className="icon-button" title="Reconnect lobby"
+            aria-label="Reconnect lobby" onClick={directory.refresh}>
+            <RefreshCw aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
+
       {room.error || roomFull ? (
         <div className="room-alert" role="alert">
           {roomFull ? "This room already has two participants." : room.error}
@@ -499,11 +515,13 @@ function App() {
       session={session}
       onLeave={leaveRoom}
       onLobbyAvailabilityChange={setLobbyAvailable}
+      directory={directory}
     />
   ) : (
     <RoomLobby
       lobbies={directory.lobbies}
       directoryStatus={directory.status}
+      onRefresh={directory.refresh}
       onEnter={enterRoom}
     />
   );
